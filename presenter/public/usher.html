@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Usher Dashboard</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body data-role="usher">
+    <main class="page usher-theme">
+      <section class="card header-card">
+        <div>
+          <h1>Usher Dashboard</h1>
+          <p>Handle incoming concerns and mark them resolved in real time.</p>
+          <p class="subtle" id="usher-meta">Preparing connection...</p>
+        </div>
+        <span class="status-pill status-connecting" id="connection-status">connecting</span>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <h2>Open Help Queue</h2>
+          <div id="usher-help-requests"></div>
+        </article>
+        <article class="card">
+          <h2>User Status</h2>
+          <div id="usher-participants"></div>
+        </article>
+      </section>
+    </main>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

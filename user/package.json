@@ -1,0 +1,22 @@
+{
+  "name": "user-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "User-side workshop application",
+  "scripts": {
+    "setup": "powershell -ExecutionPolicy Bypass -File setup.ps1",
+    "setup:playwright": "powershell -ExecutionPolicy Bypass -File setup.ps1 -InstallPlaywrightBrowsers",
+    "start": "node server.js",
+    "start:playwright": "node selfhost-playwright.mjs",
+    "open:playwright": "npx -y playwright open http://127.0.0.1:5174/user",
+    "start:aws-guide": "node aws-guide-playwright.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>User Workspace</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body data-role="user">
+    <main class="page user-theme">
+      <section class="card header-card">
+        <div>
+          <h1>User Workspace</h1>
+          <p>Follow current step actions and request help when blocked.</p>
+          <p class="subtle" id="user-meta">Preparing connection...</p>
+        </div>
+        <span class="status-pill status-connecting" id="connection-status">connecting</span>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <h2>Current Step</h2>
+          <div id="user-current-step"></div>
+          <div class="controls-row user-actions-row">
+            <button class="button" id="btn-open-target-url" type="button">Open AWS Target URL</button>
+            <button class="button button-primary" id="btn-complete-step" type="button">Submit Current Step</button>
+            <button class="button" id="btn-request-help" type="button">Request Help</button>
+          </div>
+          <p class="subtle" id="user-help-status">No active help request.</p>
+        </article>
+        <article class="card">
+          <h2>Actions</h2>
+          <div id="user-actions"></div>
+        </article>
+      </section>
+
+      <section class="card">
+        <h2>Completed Steps</h2>
+        <div id="user-step-history"></div>
+      </section>
+    </main>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

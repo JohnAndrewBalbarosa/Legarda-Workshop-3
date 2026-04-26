@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Presenter Dashboard</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body data-role="presenter">
+    <main class="page presenter-theme">
+      <section class="card header-card">
+        <div>
+          <h1>Presenter Dashboard</h1>
+          <p>Control workshop pacing, track room progress, and monitor help queue.</p>
+          <p class="subtle" id="presenter-meta">Preparing connection...</p>
+        </div>
+        <span class="status-pill status-connecting" id="connection-status">connecting</span>
+      </section>
+
+      <section class="card controls-row">
+        <button class="button" id="btn-prev-step" type="button">Previous Step</button>
+        <button class="button button-primary" id="btn-next-step" type="button">Next Step</button>
+        <select id="step-select" aria-label="Select workshop step"></select>
+        <button class="button" id="btn-set-step" type="button">Go To Step</button>
+        <a class="button button-link" href="/report.txt" target="_blank" rel="noopener">Export Report</a>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <h2>Current Step</h2>
+          <div id="presenter-current-step"></div>
+        </article>
+        <article class="card">
+          <h2>Action Progress</h2>
+          <div id="presenter-action-progress"></div>
+        </article>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <h2>Participants</h2>
+          <div id="presenter-participants"></div>
+        </article>
+        <article class="card">
+          <h2>Outstanding Help Requests</h2>
+          <div id="presenter-help-requests"></div>
+        </article>
+      </section>
+    </main>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

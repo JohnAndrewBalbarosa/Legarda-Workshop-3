@@ -1,0 +1,19 @@
+{
+  "name": "presenter-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Presenter-side workshop application",
+  "scripts": {
+    "setup": "powershell -ExecutionPolicy Bypass -File setup.ps1",
+    "start": "node server.js",
+    "start:playwright": "node selfhost-playwright.mjs",
+    "open:playwright": "npx -y playwright open http://127.0.0.1:5050/presenter"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {}
+}

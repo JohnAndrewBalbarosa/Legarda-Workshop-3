@@ -1,0 +1,17 @@
+{
+  "name": "usher-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Usher-side workshop application",
+  "scripts": {
+    "start": "node server.js",
+    "start:playwright": "node selfhost-playwright.mjs",
+    "open:playwright": "npx -y playwright open http://127.0.0.1:5175/usher"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {}
+}

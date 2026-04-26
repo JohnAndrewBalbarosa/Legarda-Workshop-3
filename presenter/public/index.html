@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workshop Control Surface</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body data-role="landing">
+    <main class="page landing-theme">
+      <section class="card">
+        <h1>Workshop Control Surface</h1>
+        <p>
+          Open each role in separate tabs so you can test the full workflow in parallel.
+          You can use query params to simulate multiple identities.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Role URLs</h2>
+        <div class="link-grid">
+          <a class="button button-link" href="/presenter" target="_blank" rel="noopener">Open Presenter</a>
+          <a class="button button-link" href="/user?id=user-1&seat=A1" target="_blank" rel="noopener">Open User A1</a>
+          <a class="button button-link" href="/usher?id=usher-1" target="_blank" rel="noopener">Open Usher</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Remote Self-Host Query</h2>
+        <p>
+          If the user or usher UI is hosted on another device, include
+          <code>?ws=ws://PRESENTER_IP:5050</code> so it connects back to the presenter server.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Quick Start</h2>
+        <ol>
+          <li>Open Presenter tab and keep it visible.</li>
+          <li>Open one or more User tabs with different IDs/seats.</li>
+          <li>Open Usher tab from presenter host link (no Playwright needed).</li>
+          <li>For AWS blinking automation, run user script: <code>npm run start:aws-guide</code>.</li>
+          <li>Advance and resolve checkpoints from the role UIs.</li>
+        </ol>
+      </section>
+    </main>
+  </body>
+</html>
