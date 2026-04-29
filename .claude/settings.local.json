@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scan-current-page.mjs)",
+      "Bash(node -e \"import\\('./presenter/modules/WorkshopPlan.js'\\).then\\(m => console.log\\(JSON.stringify\\(m.workshopSteps.map\\(s => \\({ id: s.id, sels: s.highlightSelectors }\\)\\), null, 2\\)\\)\\)\")",
+      "Bash(node --check user/aws-guide-playwright.mjs)"
+    ]
+  }
+}

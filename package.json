@@ -1,0 +1,13 @@
+{
+  "name": "legarda-workshop-3",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Root launcher for the AWS EC2 AI-guided workshop (presenter + usher + user).",
+  "scripts": {
+    "start": "node start-all.mjs",
+    "start:presenter": "node presenter/server.js",
+    "start:usher": "node usher/server.js",
+    "start:user": "node user/aws-guide-playwright.mjs"
+  }
+}
