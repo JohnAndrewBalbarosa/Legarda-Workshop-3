@@ -19,10 +19,9 @@ const Overlay = ({
         description: action.description,
       }));
 
-  // Suppress visual highlight when the participant is on the wrong link —
-  // blinking would otherwise point at elements that no longer exist on the
-  // current page.
-  const shouldHighlight = urlStatus !== 'wrong';
+  // Always allow highlighting — workspace is personal-paced, so a non-correct
+  // URL just means the user is ahead/elsewhere, not wrong.
+  const shouldHighlight = urlStatus === 'correct' || urlStatus === 'unknown';
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -62,22 +61,17 @@ const Overlay = ({
   }, [focusItems, shouldHighlight]);
 
   const banner =
-    urlStatus === 'wrong'
-      ? { color: '#b91c1c', bg: '#fee2e2', text: 'Wrong link — go back' }
-      : urlStatus === 'correct'
-        ? { color: '#166534', bg: '#dcfce7', text: 'You are at the correct link' }
-        : { color: '#475569', bg: '#e2e8f0', text: 'Checking your location…' };
+    urlStatus === 'correct'
+      ? { color: '#166534', bg: '#dcfce7', text: 'You are at the correct link' }
+      : { color: '#475569', bg: '#e2e8f0', text: 'Continue at your own pace' };
 
   const hasOpenHelp = helpRequestStatus && helpRequestStatus.status !== 'resolved';
-  const oblong =
-    urlStatus === 'wrong'
-      ? { label: 'Go back', bg: '#b91c1c', onClick: onGoBack, disabled: false }
-      : {
-          label: hasOpenHelp ? 'Help requested' : 'Ask for help',
-          bg: hasOpenHelp ? '#fdba74' : '#ea580c',
-          onClick: onRequestHelp,
-          disabled: hasOpenHelp || connectionStatus !== 'connected',
-        };
+  const oblong = {
+    label: hasOpenHelp ? 'Help requested' : 'Ask for help',
+    bg: hasOpenHelp ? '#fdba74' : '#ea580c',
+    onClick: onRequestHelp,
+    disabled: hasOpenHelp || connectionStatus !== 'connected',
+  };
 
   return (
     <section
@@ -94,16 +88,18 @@ const Overlay = ({
       <style>
         {`
           @keyframes overlayPulse {
-            0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.35); }
-            70% { box-shadow: 0 0 0 12px rgba(14, 165, 233, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+            0%   { outline: 4px solid rgba(239,68,68,1);    outline-offset: 0px;  box-shadow: 0 0 0 0    rgba(239,68,68,0.95), 0 0 18px 4px  rgba(239,68,68,0.85); background-color: rgba(239,68,68,0.18); }
+            45%  { outline: 6px solid rgba(220,38,38,1);    outline-offset: 6px;  box-shadow: 0 0 0 18px rgba(239,68,68,0.45), 0 0 36px 10px rgba(239,68,68,0.7);  background-color: rgba(239,68,68,0.28); }
+            100% { outline: 8px solid rgba(185,28,28,0.95); outline-offset: 14px; box-shadow: 0 0 0 36px rgba(239,68,68,0),    0 0 60px 18px rgba(239,68,68,0);    background-color: rgba(239,68,68,0.10); }
           }
 
           [data-workshop-highlight="true"] {
             position: relative;
-            outline: 3px solid #0ea5e9 !important;
-            outline-offset: 3px !important;
-            animation: overlayPulse 1.8s ease-out infinite;
+            outline: 4px solid rgba(239,68,68,1) !important;
+            outline-offset: 0px !important;
+            border-radius: 8px !important;
+            animation: overlayPulse 0.6s ease-out infinite !important;
+            z-index: 2147483646 !important;
           }
         `}
       </style>

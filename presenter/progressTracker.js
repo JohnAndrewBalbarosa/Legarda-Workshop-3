@@ -146,6 +146,7 @@ export class ProgressTracker {
     seatLabel = '',
     stepId = null,
     stepTitle = '',
+    personalStepIndex = 0,
   } = {}) {
     const participant = this.#ensureParticipant(participantId);
 
@@ -167,6 +168,7 @@ export class ProgressTracker {
       seatLabel: seatLabel || participant.seatLabel,
       stepId,
       stepTitle,
+      personalStepIndex,
       requestedAt: createTimestamp(),
       status: 'open',
     };
@@ -226,6 +228,23 @@ export class ProgressTracker {
     return Array.from(this.helpRequests.values())
       .filter((request) => request.status !== 'resolved')
       .sort((left, right) => left.requestedAt.localeCompare(right.requestedAt));
+  }
+
+  getOutstandingHelpRequestsRanked(getStepIndex = () => 0) {
+    return Array.from(this.helpRequests.values())
+      .filter((request) => request.status !== 'resolved')
+      .map((request) => ({
+        ...request,
+        personalStepIndex: Number.isInteger(getStepIndex(request.participantId))
+          ? getStepIndex(request.participantId)
+          : (request.personalStepIndex ?? 0),
+      }))
+      .sort((left, right) => {
+        if (left.personalStepIndex !== right.personalStepIndex) {
+          return left.personalStepIndex - right.personalStepIndex;
+        }
+        return left.requestedAt.localeCompare(right.requestedAt);
+      });
   }
 
   getParticipants() {

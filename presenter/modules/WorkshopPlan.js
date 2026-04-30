@@ -45,8 +45,8 @@ export const WORKSHOP_STEP_DEFINITIONS = [
     targetUrl: 'console.aws.amazon.com/ec2/home',
     expectedProfile: 'ec2-dashboard',
     title: 'EC2 Dashboard',
-    description: 'Click the orange "Launch instance" button.',
-    highlightSelectors: ['button:has-text("Launch instance")', 'a:has-text("Launch instance")']
+    description: 'You are on the EC2 dashboard. Click the highlighted orange "Launch instance" button — the page will scroll it into view.',
+    highlightSelectors: ['button[data-testid="launch-instance"]', 'button:has-text("Launch instance")']
   }
 ];
 

@@ -50,8 +50,10 @@ function compareUrlToStep(step, url) {
   const profileId = detectProfile(url);
   if (!profileId) return 'unknown';
   if (profileId === expected) return 'correct';
-  if (TRANSITIONAL_PROFILE_IDS.has(profileId) && !TRANSITIONAL_PROFILE_IDS.has(expected)) return 'unknown';
-  return 'wrong';
+  // Personal-paced advancement: never tell the user they're "wrong" — they
+  // may be ahead of the current step and that's fine. Presenter sees actual
+  // progress via personalStepIndex broadcast.
+  return 'unknown';
 }
 
 const App = ({
@@ -154,7 +156,13 @@ const App = ({
     };
   }, []);
 
-  const currentStep = workshopState.currentStep ?? getCurrentStep(workshopState.steps, workshopState.currentStepIndex);
+  const participantState = findParticipantState(workshopState, participantId);
+  const personalStepIndex = Number.isInteger(participantState?.personalStepIndex)
+    ? participantState.personalStepIndex
+    : workshopState.currentStepIndex;
+  const personalStep = getCurrentStep(workshopState.steps, personalStepIndex);
+  const slideStep = workshopState.currentStep ?? getCurrentStep(workshopState.steps, workshopState.currentStepIndex);
+  const currentStep = personalStep ?? slideStep;
   const urlStatus = compareUrlToStep(currentStep, currentBrowserUrl);
 
   // Mirror the URL status to presenter so the dashboard knows where each
@@ -247,9 +255,9 @@ const App = ({
 
         <StepNavigator
           steps={workshopState.steps}
-          currentStepIndex={workshopState.currentStepIndex}
+          currentStepIndex={personalStepIndex}
           completedStepIds={completedStepIds}
-          completedActionIds={[]}
+          completedActionIds={participantState?.currentStepActionIds ?? []}
         />
 
         <div

@@ -55,6 +55,7 @@ export function createPresenterWebSocketServer({
 
   function buildWorkshopState() {
     const currentStep = stepManager.getCurrentStep();
+    const slideIndex = stepManager.getCurrentStepIndex();
     const participantStates = progressTracker.getParticipants().map((participant) => ({
       ...participant,
       ...stepManager.buildParticipantSnapshot(participant.participantId),
@@ -64,9 +65,7 @@ export function createPresenterWebSocketServer({
       (participant) => participant.role === 'user' && activeUserIds.includes(participant.participantId),
     );
     const actionProgress = (currentStep?.actions ?? []).map((action) => {
-      const completedCount = activeParticipants.filter((participant) =>
-        (participant.currentStepActionIds ?? []).includes(action.id),
-      ).length;
+      const completedCount = stepManager.getActionCompletionCount(slideIndex, action.id, activeUserIds);
 
       return {
         actionId: action.id,
@@ -78,20 +77,26 @@ export function createPresenterWebSocketServer({
         pendingCount: Math.max(activeParticipants.length - completedCount, 0),
       };
     });
+    const stepDistribution = stepManager.getStepDistribution(activeUserIds);
+    const minPersonalStepIndex = stepManager.getMinPersonalStepIndex(activeUserIds);
 
     return {
-      currentStepIndex: stepManager.getCurrentStepIndex(),
+      currentStepIndex: slideIndex,
       currentStep,
       steps: stepManager.getStepList(),
       highlights: stepManager.getHighlightDetails(),
       actionProgress,
+      stepDistribution,
+      minPersonalStepIndex,
       participants: participantStates,
-      outstandingHelpRequests: progressTracker.getOutstandingHelpRequests(),
-      allUsersComplete: stepManager.isCurrentStepCompleteForAll(activeUserIds),
+      outstandingHelpRequests: progressTracker.getOutstandingHelpRequestsRanked(
+        (id) => stepManager.getParticipantStepIndex(id),
+      ),
+      allUsersComplete: stepManager.allParticipantsPastSlide(activeUserIds),
       canAdvance: stepManager.canAdvance(),
       canRetreat: stepManager.canRetreat(),
       reportSummary: progressTracker.buildReport({
-        currentStepIndex: stepManager.getCurrentStepIndex(),
+        currentStepIndex: slideIndex,
         totalSteps: stepManager.getStepList().length,
       }).summary,
       translatorStats: translator.getStats(),
@@ -99,14 +104,12 @@ export function createPresenterWebSocketServer({
   }
 
   function syncActiveUserProgress() {
-    const currentStep = stepManager.getCurrentStep();
-
     for (const participantId of getActiveUserIds()) {
       const snapshot = stepManager.buildParticipantSnapshot(participantId);
       progressTracker.updateParticipantProgress({
         participantId,
-        currentStepId: currentStep?.id ?? null,
-        currentStepTitle: currentStep?.title ?? '',
+        currentStepId: snapshot.personalStepId,
+        currentStepTitle: snapshot.personalStepTitle,
         completedStepIds: snapshot.completedStepIds,
         currentStepActionIds: snapshot.currentStepActionIds,
         isCurrentStepComplete: snapshot.isCurrentStepComplete,
@@ -140,14 +143,22 @@ export function createPresenterWebSocketServer({
   }
 
   function maybeAutoAdvance() {
-    if (!stepManager.isCurrentStepCompleteForAll(getActiveUserIds()) || !stepManager.canAdvance()) {
-      return false;
+    const activeIds = getActiveUserIds();
+    if (activeIds.length === 0) return false;
+
+    let lastStep = null;
+    let advanced = false;
+    while (stepManager.canAdvance() && stepManager.allParticipantsPastSlide(activeIds)) {
+      lastStep = stepManager.advanceStep();
+      advanced = true;
     }
 
-    const nextStep = stepManager.advanceStep();
-    onAutoAdvance(nextStep);
-    broadcastState('auto_advanced');
-    return true;
+    if (advanced) {
+      onAutoAdvance(lastStep);
+      broadcastState('auto_advanced');
+      return true;
+    }
+    return false;
   }
 
   function handleHello(socket, message) {
@@ -270,12 +281,15 @@ export function createPresenterWebSocketServer({
     }
 
     if (message.type === 'user.help_request') {
+      const personalStepIndex = stepManager.getParticipantStepIndex(participantId);
+      const personalStep = stepManager.getParticipantStep(participantId);
       const request = progressTracker.recordHelpRequest({
         requestId: message.requestId,
         participantId,
         seatLabel: socket.meta?.seatLabel ?? '',
-        stepId: currentStep?.id ?? null,
-        stepTitle: currentStep?.title ?? '',
+        stepId: personalStep?.id ?? currentStep?.id ?? null,
+        stepTitle: personalStep?.title ?? currentStep?.title ?? '',
+        personalStepIndex,
       });
 
       if (!request) {

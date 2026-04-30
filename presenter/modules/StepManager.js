@@ -149,9 +149,86 @@ export class StepManager {
     return this.getCurrentStep();
   }
 
-  recordActionClick(participantId, actionId) {
-    const step = this.getCurrentStep();
+  getParticipantStepIndex(participantId) {
     const progress = this.#ensureParticipantProgress(participantId);
+    const idx = progress.personalStepIndex ?? 0;
+    return Math.max(0, Math.min(idx, Math.max(this.steps.length - 1, 0)));
+  }
+
+  getParticipantStep(participantId) {
+    const idx = this.getParticipantStepIndex(participantId);
+    return this.steps[idx] ?? null;
+  }
+
+  setParticipantStepIndex(participantId, index) {
+    const progress = this.#ensureParticipantProgress(participantId);
+    if (this.steps.length === 0) {
+      progress.personalStepIndex = 0;
+      return 0;
+    }
+    progress.personalStepIndex = Math.max(0, Math.min(Number(index) || 0, this.steps.length - 1));
+    return progress.personalStepIndex;
+  }
+
+  advanceParticipantStep(participantId) {
+    const progress = this.#ensureParticipantProgress(participantId);
+    if (progress.personalStepIndex < this.steps.length - 1) {
+      progress.personalStepIndex += 1;
+    }
+    return progress.personalStepIndex;
+  }
+
+  retreatParticipantStep(participantId) {
+    const progress = this.#ensureParticipantProgress(participantId);
+    if (progress.personalStepIndex > 0) {
+      progress.personalStepIndex -= 1;
+    }
+    return progress.personalStepIndex;
+  }
+
+  getMinPersonalStepIndex(participantIds = []) {
+    if (participantIds.length === 0 || this.steps.length === 0) return -1;
+    let min = Infinity;
+    for (const id of participantIds) {
+      const idx = this.getParticipantStepIndex(id);
+      if (idx < min) min = idx;
+    }
+    return Number.isFinite(min) ? min : -1;
+  }
+
+  getStepDistribution(participantIds = []) {
+    const counts = new Map();
+    for (const id of participantIds) {
+      const idx = this.getParticipantStepIndex(id);
+      counts.set(idx, (counts.get(idx) ?? 0) + 1);
+    }
+    return this.steps.map((step, index) => ({
+      stepIndex: index,
+      stepId: step.id,
+      stepTitle: step.title,
+      count: counts.get(index) ?? 0,
+    }));
+  }
+
+  getActionCompletionCount(stepIndex, actionId, participantIds = []) {
+    const step = this.steps[stepIndex];
+    if (!step) return 0;
+    let count = 0;
+    for (const id of participantIds) {
+      const progress = this.#ensureParticipantProgress(id);
+      if (progress.completedStepIds.has(step.id) || (progress.personalStepIndex ?? 0) > stepIndex) {
+        count += 1;
+        continue;
+      }
+      const actions = progress.actionsByStep.get(step.id) ?? new Set();
+      if (actions.has(actionId)) count += 1;
+    }
+    return count;
+  }
+
+  recordActionClick(participantId, actionId) {
+    const progress = this.#ensureParticipantProgress(participantId);
+    const step = this.steps[progress.personalStepIndex] ?? null;
 
     if (!step) {
       return this.buildParticipantSnapshot(participantId);
@@ -166,14 +243,17 @@ export class StepManager {
 
     if (this.#isStepComplete(step, actionIds)) {
       progress.completedStepIds.add(step.id);
+      if (progress.personalStepIndex < this.steps.length - 1) {
+        progress.personalStepIndex += 1;
+      }
     }
 
     return this.buildParticipantSnapshot(participantId);
   }
 
   markStepComplete(participantId, actionIds = []) {
-    const step = this.getCurrentStep();
     const progress = this.#ensureParticipantProgress(participantId);
+    const step = this.steps[progress.personalStepIndex] ?? null;
 
     if (!step) {
       return this.buildParticipantSnapshot(participantId);
@@ -191,45 +271,51 @@ export class StepManager {
 
     if (step.actions.length === 0 || this.#isStepComplete(step, completedActionIds)) {
       progress.completedStepIds.add(step.id);
+      if (progress.personalStepIndex < this.steps.length - 1) {
+        progress.personalStepIndex += 1;
+      }
     }
 
     return this.buildParticipantSnapshot(participantId);
   }
 
   isParticipantCompleteForCurrentStep(participantId) {
-    const step = this.getCurrentStep();
-
-    if (!step) {
-      return false;
-    }
-
-    if (step.actions.length === 0) {
-      return true;
-    }
-
     const progress = this.#ensureParticipantProgress(participantId);
+    if (progress.personalStepIndex > this.currentStepIndex) return true;
+    const step = this.getCurrentStep();
+    if (!step) return false;
+    if (step.actions.length === 0) return true;
     const completedActionIds = progress.actionsByStep.get(step.id) ?? new Set();
     return this.#isStepComplete(step, completedActionIds);
   }
 
-  isCurrentStepCompleteForAll(participantIds = []) {
-    if (!this.getCurrentStep() || participantIds.length === 0) {
-      return false;
-    }
+  allParticipantsPastSlide(participantIds = []) {
+    if (participantIds.length === 0) return false;
+    const slideIndex = this.getCurrentStepIndex();
+    return participantIds.every((id) => this.getParticipantStepIndex(id) > slideIndex);
+  }
 
-    return participantIds.every((participantId) => this.isParticipantCompleteForCurrentStep(participantId));
+  isCurrentStepCompleteForAll(participantIds = []) {
+    return this.allParticipantsPastSlide(participantIds);
   }
 
   buildParticipantSnapshot(participantId) {
-    const step = this.getCurrentStep();
     const progress = this.#ensureParticipantProgress(participantId);
-    const currentStepActionIds = step ? Array.from(progress.actionsByStep.get(step.id) ?? []) : [];
+    const personalStep = this.steps[progress.personalStepIndex] ?? null;
+    const currentStepActionIds = personalStep
+      ? Array.from(progress.actionsByStep.get(personalStep.id) ?? [])
+      : [];
 
     return {
       participantId,
       completedStepIds: Array.from(progress.completedStepIds),
       currentStepActionIds,
-      isCurrentStepComplete: step ? this.#isStepComplete(step, new Set(currentStepActionIds)) : false,
+      isCurrentStepComplete: personalStep
+        ? this.#isStepComplete(personalStep, new Set(currentStepActionIds))
+        : false,
+      personalStepIndex: progress.personalStepIndex ?? 0,
+      personalStepId: personalStep?.id ?? null,
+      personalStepTitle: personalStep?.title ?? '',
     };
   }
 
@@ -244,6 +330,7 @@ export class StepManager {
       return {
         actionsByStep: new Map(),
         completedStepIds: new Set(),
+        personalStepIndex: 0,
       };
     }
 
@@ -251,6 +338,7 @@ export class StepManager {
       this.participantProgress.set(participantId, {
         actionsByStep: new Map(),
         completedStepIds: new Set(),
+        personalStepIndex: 0,
       });
     }
 

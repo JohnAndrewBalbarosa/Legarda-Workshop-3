@@ -242,20 +242,37 @@ function initializeRoleClient(clientRole) {
       setHtml('presenter-action-progress', `<div class="list">${markup}</div>`);
     }
 
+    const distribution = Array.isArray(workshopState.stepDistribution) ? workshopState.stepDistribution : [];
+    if (distribution.length > 0) {
+      const minIdx = workshopState.minPersonalStepIndex;
+      const slideIdx = workshopState.currentStepIndex;
+      const distMarkup = distribution
+        .map((entry) => {
+          const tag = entry.stepIndex === slideIdx ? ' (slide)' : '';
+          const slow = entry.stepIndex === minIdx && entry.count > 0 ? ' (slowest)' : '';
+          return `<div class="list-item"><h3>${entry.stepIndex + 1}. ${escapeHtml(entry.stepTitle)}${tag}${slow}</h3><p>${entry.count} user${entry.count === 1 ? '' : 's'}</p></div>`;
+        })
+        .join('');
+      setHtml('presenter-step-distribution', `<div class="list">${distMarkup}</div>`);
+    } else {
+      setHtml('presenter-step-distribution', '<p class="state-empty">No participants yet.</p>');
+    }
+
     if (workshopState.participants.length === 0) {
       setHtml('presenter-participants', '<p class="state-empty">No participants connected yet.</p>');
     } else {
       const rows = workshopState.participants
         .map((participant) => {
           const status = getParticipantStatus(participant);
+          const stepIdx = Number.isInteger(participant.personalStepIndex) ? participant.personalStepIndex + 1 : '-';
           return `<tr><td>${escapeHtml(participant.participantId)}</td><td>${escapeHtml(participant.role)}</td><td>${escapeHtml(
             participant.seatLabel || '-',
-          )}</td><td>${participant.completedStepIds?.length || 0}</td><td><span class="pill ${status.className}">${status.label}</span></td></tr>`;
+          )}</td><td>${stepIdx}</td><td>${participant.completedStepIds?.length || 0}</td><td><span class="pill ${status.className}">${status.label}</span></td></tr>`;
         })
         .join('');
       setHtml(
         'presenter-participants',
-        `<table class="data-table"><thead><tr><th>ID</th><th>Role</th><th>Seat</th><th>Steps Done</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
+        `<table class="data-table"><thead><tr><th>ID</th><th>Role</th><th>Seat</th><th>Personal Step</th><th>Steps Done</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
       );
     }
 
@@ -263,12 +280,13 @@ function initializeRoleClient(clientRole) {
       setHtml('presenter-help-requests', '<p class="state-empty">No active help requests.</p>');
     } else {
       const requestsMarkup = workshopState.outstandingHelpRequests
-        .map(
-          (request) =>
-            `<div class="list-item"><h3>${escapeHtml(request.seatLabel || request.participantId)}</h3><p>Step: ${escapeHtml(
-              request.stepTitle || 'Current workshop step',
-            )}</p><p>Requested: ${escapeHtml(request.requestedAt)}</p></div>`,
-        )
+        .map((request, idx) => {
+          const priority = idx === 0 ? '<span class="pill pill-help">priority</span>' : '';
+          const stepIdx = Number.isInteger(request.personalStepIndex)
+            ? `Step ${request.personalStepIndex + 1}`
+            : '';
+          return `<div class="list-item"><h3>${escapeHtml(request.seatLabel || request.participantId)} ${priority}</h3><p>${stepIdx} — ${escapeHtml(request.stepTitle || 'Current workshop step')}</p><p>Requested: ${escapeHtml(request.requestedAt)}</p></div>`;
+        })
         .join('');
       setHtml('presenter-help-requests', `<div class="list">${requestsMarkup}</div>`);
     }
@@ -306,17 +324,21 @@ function initializeRoleClient(clientRole) {
   }
 
   function renderUserView() {
-    const currentStep = getCurrentStep();
     const participant = findParticipant(identity.participantId);
+    const personalStepIndex = Number.isInteger(participant?.personalStepIndex)
+      ? participant.personalStepIndex
+      : workshopState.currentStepIndex;
+    const personalStep = workshopState.steps[personalStepIndex] ?? null;
+    const currentStep = personalStep ?? getCurrentStep();
     const completedActionIds = new Set(participant?.currentStepActionIds ?? []);
     const completedStepIds = participant?.completedStepIds ?? [];
 
     setText(
       'user-meta',
-      `User: ${identity.participantId} | Seat: ${identity.seatLabel} | Completed steps: ${completedStepIds.length} | WS: ${connection.url}`,
+      `User: ${identity.participantId} | Seat: ${identity.seatLabel} | Personal step: ${personalStepIndex + 1}/${workshopState.steps.length} | Completed steps: ${completedStepIds.length} | WS: ${connection.url}`,
     );
 
-    setHtml('user-current-step', buildStepMarkup(currentStep, workshopState.currentStepIndex, workshopState.steps.length, workshopState.highlights));
+    setHtml('user-current-step', buildStepMarkup(currentStep, personalStepIndex, workshopState.steps.length, workshopState.highlights));
 
     if (!currentStep) {
       setHtml('user-actions', '<p class="state-empty">Waiting for presenter step broadcast.</p>');

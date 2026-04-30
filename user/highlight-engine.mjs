@@ -151,11 +151,16 @@ export const PROFILES = [
   {
     id: 'ec2-dashboard',
     label: 'EC2 Dashboard — Launch instance',
-    match: (u) => u.includes('console.aws.amazon.com/ec2/'),
+    match: (u) =>
+      u.includes('console.aws.amazon.com/ec2/') &&
+      !u.includes('#LaunchInstances'),
     selectors: [
+      'button[data-testid="launch-instance"]',
+      'button[data-analytics-funnel-substep="launch-instance"]',
+      'awsui-button[variant="primary"] button',
       '[data-testid="launch-instance-button"]',
       'a[href*="LaunchInstances"]',
-      'button[data-testid="launch-instance"]',
+      'button:has-text("Launch instance")',
       'text=Launch instance',
       'text=Launch instances',
     ],
@@ -261,15 +266,16 @@ export const FRAME_INJECTION_FN = function applyHighlights(selectors) {
   if (!document.getElementById('w-style')) {
     const s = document.createElement('style');
     s.id = 'w-style';
+    s.dataset.wRed = '1';
     s.textContent = `
       @keyframes w-ripple {
-        0%   { outline: 2px solid rgba(220,38,38,0.95); outline-offset: 0px;  box-shadow: 0 0 0 0   rgba(220,38,38,0.7); }
-        55%  { outline: 3px solid rgba(220,38,38,1);    outline-offset: 4px;  box-shadow: 0 0 0 10px rgba(220,38,38,0.25); }
-        100% { outline: 4px solid rgba(220,38,38,0.85); outline-offset: 8px;  box-shadow: 0 0 0 20px rgba(220,38,38,0); }
+        0%   { outline: 4px solid rgba(239,68,68,1);    outline-offset: 0px;  box-shadow: 0 0 0 0    rgba(239,68,68,0.95), 0 0 18px 4px  rgba(239,68,68,0.85); background-color: rgba(239,68,68,0.18); }
+        45%  { outline: 6px solid rgba(220,38,38,1);    outline-offset: 6px;  box-shadow: 0 0 0 18px rgba(239,68,68,0.45), 0 0 36px 10px rgba(239,68,68,0.7);  background-color: rgba(239,68,68,0.28); }
+        100% { outline: 8px solid rgba(185,28,28,0.95); outline-offset: 14px; box-shadow: 0 0 0 36px rgba(239,68,68,0),    0 0 60px 18px rgba(239,68,68,0);    background-color: rgba(239,68,68,0.10); }
       }
       [data-w-hl] {
-        animation: w-ripple 0.85s infinite ease-out !important;
-        border-radius: 6px !important;
+        animation: w-ripple 0.6s infinite ease-out !important;
+        border-radius: 8px !important;
         position: relative !important;
         z-index: 2147483646 !important;
       }
@@ -329,16 +335,15 @@ export const FRAME_INJECTION_FN = function applyHighlights(selectors) {
         if (hit > 0) break;
       }
     }
-    // Vertically center the first highlighted element (smooth, only if not
-    // already roughly centered to avoid scroll jitter).
+    // Vertically center the first highlighted element on initial apply for a
+    // given selector-set. Cache the key so MutationObserver re-applications do
+    // not fight the user's manual scroll.
     const first = document.querySelector('[data-w-hl]');
     if (first) {
-      const rect = first.getBoundingClientRect();
-      const vh = window.innerHeight || document.documentElement.clientHeight;
-      const center = rect.top + rect.height / 2;
-      const offFromCenter = Math.abs(center - vh / 2);
-      if (offFromCenter > vh * 0.25) {
-        try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {}
+      const scrollKey = JSON.stringify(selectors);
+      if (window.__wLastScrollKey !== scrollKey) {
+        window.__wLastScrollKey = scrollKey;
+        try { first.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }); } catch {}
       }
     }
     return hit;

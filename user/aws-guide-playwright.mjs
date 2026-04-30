@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { expectedUrlMatcher, getHighlightsForUrl } from './highlight-engine.mjs';
+import { expectedUrlMatcher, getHighlightsForUrl, injectBlinkInAllFrames } from './highlight-engine.mjs';
 
 const host = process.env.USER_HOST || process.env.HOST || '192.168.1.244';
 const presenterWs = process.env.PRESENTER_WS || 'ws://192.168.1.244:5050';
@@ -56,13 +56,19 @@ async function renderGuideOverlay(page, state) {
   }
 
   const isLaunchPage = currentUrl.includes('#LaunchInstances:');
-  const currentStep = state?.currentStep || state?.steps?.[state?.currentStepIndex] || null;
+  const me = (state?.participants ?? []).find((p) => p.participantId === userId) || null;
+  const personalStepIndex = Number.isInteger(me?.personalStepIndex)
+    ? me.personalStepIndex
+    : state?.currentStepIndex;
+  const personalStep = state?.steps?.[personalStepIndex] || null;
+  const slideStep = state?.currentStep || state?.steps?.[state?.currentStepIndex] || null;
+  const currentStep = personalStep || slideStep;
   const expectedProfile = currentStep?.expectedProfile || '';
-  const urlStatus = expectedUrlMatcher(expectedProfile, currentUrl);
+  const rawUrlStatus = expectedUrlMatcher(expectedProfile, currentUrl);
+  // Personal-paced workspace: never display "wrong" — soften it to "unknown".
+  const urlStatus = rawUrlStatus === 'wrong' ? 'unknown' : rawUrlStatus;
   const computedHighlights = getHighlightsForUrl(currentUrl, { signinChoice });
-  // Only blink when the participant is actually at the correct link. If they
-  // wandered off, the wrong-link banner takes over and we suppress highlights.
-  const highlightsToApply = urlStatus === 'wrong' ? [] : computedHighlights.selectors.map((sel) => ({ selector: sel }));
+  const highlightsToApply = computedHighlights.selectors.map((sel) => ({ selector: sel }));
   const showSigninPicker = computedHighlights.id === 'signin-choice' && signinChoice === null;
 
   reportUrlIfChanged(currentUrl, urlStatus, computedHighlights.id);
@@ -81,22 +87,32 @@ async function renderGuideOverlay(page, state) {
         signinChoice,
       } = payload;
 
-      // STYLES
+      // STYLES — red ripple. Always ensure a fresh canonical red stylesheet is
+      // present on the page (SPA navigations and full re-renders can wipe it).
+      const stale = document.getElementById('w-style');
+      if (stale && stale.dataset.wRed !== '1') stale.remove();
       if (!document.getElementById('w-style')) {
         const s = document.createElement('style');
         s.id = 'w-style';
+        s.dataset.wRed = '1';
         s.textContent = `
-          @keyframes blink { 0%, 100% { box-shadow: 0 0 0 2px #0ea5e9, 0 0 0 0 rgba(14,165,233,0.7); } 50% { box-shadow: 0 0 0 2px #0ea5e9, 0 0 0 12px rgba(14,165,233,0); } }
-          [data-w-hl] { outline: 3px solid #0ea5e9 !important; animation: blink 1.5s infinite !important; border-radius: 4px !important; }
+          @keyframes w-ripple {
+            0%   { outline: 4px solid rgba(239,68,68,1);    outline-offset: 0px;  box-shadow: 0 0 0 0    rgba(239,68,68,0.95), 0 0 18px 4px  rgba(239,68,68,0.85); background-color: rgba(239,68,68,0.18); }
+            45%  { outline: 6px solid rgba(220,38,38,1);    outline-offset: 6px;  box-shadow: 0 0 0 18px rgba(239,68,68,0.45), 0 0 36px 10px rgba(239,68,68,0.7);  background-color: rgba(239,68,68,0.28); }
+            100% { outline: 8px solid rgba(185,28,28,0.95); outline-offset: 14px; box-shadow: 0 0 0 36px rgba(239,68,68,0),    0 0 60px 18px rgba(239,68,68,0);    background-color: rgba(239,68,68,0.10); }
+          }
+          [data-w-hl] {
+            animation: w-ripple 0.6s infinite ease-out !important;
+            border-radius: 8px !important;
+            position: relative !important;
+            z-index: 2147483646 !important;
+          }
         `;
-        document.head.appendChild(s);
+        (document.head || document.documentElement).appendChild(s);
       }
-
-      // HIGHLIGHTS — clear, then apply only if list is non-empty
-      document.querySelectorAll('[data-w-hl]').forEach(el => el.removeAttribute('data-w-hl'));
-      if (Array.isArray(highlights) && highlights.length > 0) {
-        highlights.forEach(h => { try { document.querySelectorAll(h.selector).forEach(el => el.setAttribute('data-w-hl', 'true')); } catch(e) {} });
-      }
+      // Highlight application is handled by injectBlinkInAllFrames (engine), which
+      // installs a MutationObserver and supports text= / aria= selectors. Do not
+      // manually toggle [data-w-hl] here — that would race with the engine.
 
       // OVERLAY
       let host = document.getElementById('workshop-host');
@@ -107,20 +123,13 @@ async function renderGuideOverlay(page, state) {
         host.attachShadow({ mode: 'open' });
       }
 
-      const isWrong = urlStatus === 'wrong';
       const isCorrect = urlStatus === 'correct';
-      const banner = isWrong
-        ? { color: '#b91c1c', bg: '#fee2e2', text: 'Wrong link — go back' }
-        : isCorrect
-          ? { color: '#166534', bg: '#dcfce7', text: 'You are at the correct link' }
-          : { color: '#475569', bg: '#e2e8f0', text: 'Checking your location…' };
+      const banner = isCorrect
+        ? { color: '#166534', bg: '#dcfce7', text: 'You are at the correct link' }
+        : { color: '#475569', bg: '#e2e8f0', text: 'Continue at your own pace' };
 
-      // Oblong button:
-      //   wrong  → clickable Go back
-      //   correct/unknown → clickable Ask for help
-      const oblong = isWrong
-        ? { id: 'go-back', label: 'Go back', bg: '#b91c1c' }
-        : { id: 'ask-help', label: 'Ask for help', bg: '#ea580c' };
+      // Workspace is personal-paced — always offer Ask for help; no Go back.
+      const oblong = { id: 'ask-help', label: 'Ask for help', bg: '#ea580c' };
 
       const shadow = host.shadowRoot;
       shadow.innerHTML = `
@@ -193,6 +202,12 @@ async function renderGuideOverlay(page, state) {
       showSigninPicker,
       signinChoice,
     });
+
+    // Install / refresh the MutationObserver-driven highlighter across all frames.
+    // This is what keeps the blink alive when the AWS console re-renders.
+    try {
+      await injectBlinkInAllFrames(page, computedHighlights.selectors);
+    } catch (e) {}
   } catch (e) {}
 }
 

@@ -45,6 +45,8 @@ const Dashboard = ({
     currentStep: null,
     steps: [],
     actionProgress: [],
+    stepDistribution: [],
+    minPersonalStepIndex: -1,
     participants: [],
     outstandingHelpRequests: [],
     reportSummary: null,
@@ -247,7 +249,43 @@ const Dashboard = ({
                   fontWeight: 600,
                 }}
               >
-                Everyone connected is complete with the current step.
+                Everyone connected is past the slide step. The slide will auto-advance.
+              </div>
+            ) : null}
+
+            {state.stepDistribution?.length ? (
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <h3 style={{ margin: 0 }}>Step Distribution</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>
+                  Slide auto-advances when every user passes the current step. Lowest step gets help priority.
+                </p>
+                <div style={{ display: 'grid', gap: '6px' }}>
+                  {state.stepDistribution.map((entry) => {
+                    const isSlide = entry.stepIndex === state.currentStepIndex;
+                    const isBaseline = entry.stepIndex === state.minPersonalStepIndex;
+                    return (
+                      <div
+                        key={entry.stepId}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          border: isSlide ? '2px solid #2563eb' : '1px solid #d7deea',
+                          backgroundColor: isBaseline ? '#fef3c7' : '#ffffff',
+                        }}
+                      >
+                        <span>
+                          <strong>{entry.stepIndex + 1}.</strong> {entry.stepTitle}
+                          {isSlide ? <span style={{ marginLeft: 8, color: '#2563eb', fontWeight: 700 }}>(slide)</span> : null}
+                          {isBaseline && entry.count > 0 ? <span style={{ marginLeft: 8, color: '#92400e', fontWeight: 700 }}>(slowest)</span> : null}
+                        </span>
+                        <span style={{ fontWeight: 700 }}>{entry.count} user{entry.count === 1 ? '' : 's'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
           </div>
