@@ -16,6 +16,8 @@ const UsherDashboard = ({
   const queueRef = useRef(new HelpQueue());
   const connectionRef = useRef(null);
   const notifierRef = useRef(new ResolutionNotifier());
+  const claimedByRef = useRef(new Map());
+  const [, setClaimVersion] = useState(0);
 
   useEffect(() => {
     const connection = connectToPresenter({
@@ -33,8 +35,17 @@ const UsherDashboard = ({
           setRequests(queueRef.current.getQueue());
         }
 
+        if (message.type === 'help_claimed' && message.requestId) {
+          // Update queue entry with claimedBy info so other ushers see the row
+          // greyed out. HelpQueue may not store the claim natively — track it
+          // in a sibling map so render can read it.
+          claimedByRef.current.set(message.requestId, message.usherId);
+          setClaimVersion((value) => value + 1);
+        }
+
         if (message.type === 'help_resolved' && message.requestId) {
           queueRef.current.resolveHelpRequest(message.requestId);
+          claimedByRef.current.delete(message.requestId);
           setRequests(queueRef.current.getQueue());
         }
       },
@@ -55,10 +66,20 @@ const UsherDashboard = ({
 
   function handleResolve(request) {
     queueRef.current.resolveHelpRequest(request.requestId);
+    claimedByRef.current.delete(request.requestId);
     setRequests(queueRef.current.getQueue());
     notifierRef.current.notifyResolution({
       requestId: request.requestId,
       participantId: request.participantId,
+      usherId,
+    });
+  }
+
+  function handleClaim(request) {
+    if (!connectionRef.current) return;
+    connectionRef.current.send({
+      type: 'usher.claim',
+      requestId: request.requestId,
       usherId,
     });
   }
@@ -144,6 +165,9 @@ const UsherDashboard = ({
             <div style={{ display: 'grid', gap: '12px' }}>
               {requests.map((request) => {
                 const participant = findParticipant(request.participantId);
+                const claimedBy = claimedByRef.current.get(request.requestId) ?? null;
+                const isClaimedByMe = claimedBy === usherId;
+                const isClaimedByOther = Boolean(claimedBy) && !isClaimedByMe;
 
                 return (
                   <article
@@ -152,14 +176,17 @@ const UsherDashboard = ({
                       borderRadius: '14px',
                       padding: '16px',
                       border: '1px solid #fdba74',
-                      backgroundColor: '#fff7ed',
+                      backgroundColor: isClaimedByMe ? '#ecfeff' : isClaimedByOther ? '#f1f5f9' : '#fff7ed',
+                      opacity: isClaimedByOther ? 0.6 : 1,
                       display: 'grid',
                       gap: '10px',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
                       <strong>{request.seatLabel || request.participantId}</strong>
-                      <span style={{ color: '#9a3412', fontWeight: 700 }}>Waiting for help</span>
+                      <span style={{ color: claimedBy ? '#155e75' : '#9a3412', fontWeight: 700 }}>
+                        {claimedBy ? `Claimed by ${claimedBy}` : 'Waiting for help'}
+                      </span>
                     </div>
                     <div style={{ color: '#7c2d12' }}>
                       Step: {request.stepTitle || participant?.currentStepTitle || 'Current workshop step'}
@@ -167,22 +194,40 @@ const UsherDashboard = ({
                     <div style={{ color: '#9a3412', fontSize: '0.9rem' }}>
                       Requested at {request.requestedAt}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleResolve(request)}
-                      style={{
-                        width: 'fit-content',
-                        border: 'none',
-                        borderRadius: '10px',
-                        padding: '10px 14px',
-                        backgroundColor: '#9a3412',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Mark resolved
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleClaim(request)}
+                        disabled={Boolean(claimedBy)}
+                        style={{
+                          border: 'none',
+                          borderRadius: '10px',
+                          padding: '10px 14px',
+                          backgroundColor: claimedBy ? '#cbd5e1' : '#0891b2',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          cursor: claimedBy ? 'default' : 'pointer',
+                        }}
+                      >
+                        {isClaimedByMe ? 'Taken' : 'Take this'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResolve(request)}
+                        disabled={isClaimedByOther}
+                        style={{
+                          border: 'none',
+                          borderRadius: '10px',
+                          padding: '10px 14px',
+                          backgroundColor: isClaimedByOther ? '#cbd5e1' : '#9a3412',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          cursor: isClaimedByOther ? 'default' : 'pointer',
+                        }}
+                      >
+                        Mark resolved
+                      </button>
+                    </div>
                   </article>
                 );
               })}

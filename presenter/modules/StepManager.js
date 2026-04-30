@@ -27,6 +27,7 @@ function normalizeStep(step, index) {
     id: step?.id ?? `step-${index + 1}`,
     phase: step?.phase ?? '',
     targetUrl: step?.targetUrl ?? '',
+    expectedProfile: step?.expectedProfile ?? '',
     notes: step?.notes ?? '',
     title: step?.title ?? `Step ${index + 1}`,
     description: step?.description ?? '',

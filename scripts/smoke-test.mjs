@@ -34,7 +34,7 @@ async function run() {
     port: 0,
   }).getState();
   assert.ok(defaultState.steps.length > 0);
-  assert.equal(defaultState.workflowReference.name, 'AWS EC2 Workshop Flow');
+  assert.equal(defaultState.workflowReference.name, 'AWS EC2 AI-Guided Workshop');
 
   const autoAdvanceEvents = [];
   const stateChanges = [];

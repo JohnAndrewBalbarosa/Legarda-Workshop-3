@@ -34,6 +34,12 @@ export class ProgressTracker {
       completedStepIds: existingParticipant?.completedStepIds ?? [],
       currentStepActionIds: existingParticipant?.currentStepActionIds ?? [],
       activeHelpRequestId: existingParticipant?.activeHelpRequestId ?? null,
+      signinChoice: existingParticipant?.signinChoice ?? null,
+      translationLang: existingParticipant?.translationLang ?? null,
+      currentUrl: existingParticipant?.currentUrl ?? '',
+      currentUrlStatus: existingParticipant?.currentUrlStatus ?? 'unknown',
+      currentProfileId: existingParticipant?.currentProfileId ?? null,
+      claimedBy: existingParticipant?.claimedBy ?? null,
     };
 
     this.participants.set(participantId, participant);
@@ -74,6 +80,64 @@ export class ProgressTracker {
     });
 
     return { ...participant };
+  }
+
+  setSigninChoice(participantId, choice) {
+    const participant = this.#ensureParticipant(participantId);
+    if (!participant) return null;
+    participant.signinChoice = choice === 'existing' || choice === 'new' ? choice : null;
+    participant.lastSeenAt = createTimestamp();
+    return { ...participant };
+  }
+
+  setTranslationLanguage(participantId, language) {
+    const participant = this.#ensureParticipant(participantId);
+    if (!participant) return null;
+    participant.translationLang = language || null;
+    participant.lastSeenAt = createTimestamp();
+    return { ...participant };
+  }
+
+  setCurrentUrl(participantId, { url = '', urlStatus = 'unknown', profileId = null } = {}) {
+    const participant = this.#ensureParticipant(participantId);
+    if (!participant) return null;
+    participant.currentUrl = url;
+    participant.currentUrlStatus = urlStatus;
+    participant.currentProfileId = profileId;
+    participant.lastSeenAt = createTimestamp();
+    return { ...participant };
+  }
+
+  claimHelpRequest({ requestId, usherId, claimedAt = createTimestamp() } = {}) {
+    if (!requestId || !this.helpRequests.has(requestId)) {
+      return null;
+    }
+
+    const request = this.helpRequests.get(requestId);
+    if (request.status === 'resolved') {
+      return null;
+    }
+    if (request.claimedBy && request.claimedBy !== usherId) {
+      // already claimed by another usher — do nothing
+      return null;
+    }
+
+    request.status = 'claimed';
+    request.claimedBy = usherId;
+    request.claimedAt = claimedAt;
+
+    const participant = this.#ensureParticipant(request.participantId);
+    if (participant) {
+      participant.claimedBy = usherId;
+    }
+
+    this.#logActivity('help_claimed', {
+      participantId: request.participantId,
+      requestId,
+      usherId,
+    });
+
+    return { ...request };
   }
 
   recordHelpRequest({
@@ -140,6 +204,7 @@ export class ProgressTracker {
 
     if (participant) {
       participant.activeHelpRequestId = null;
+      participant.claimedBy = null;
       participant.lastResolutionAt = request.resolvedAt;
     }
 

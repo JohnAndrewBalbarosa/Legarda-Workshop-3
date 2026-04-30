@@ -1,0 +1,18 @@
+{
+  "aws-home": [
+    {
+      "selector": "text=Sign in",
+      "count": 1
+    }
+  ],
+  "console-home": [
+    {
+      "selector": "[data-testid=\"awsc-concierge-input\"]",
+      "count": 1
+    },
+    {
+      "selector": "[data-testid=\"services-search-result-link-ec2\"]",
+      "count": 1
+    }
+  ]
+}

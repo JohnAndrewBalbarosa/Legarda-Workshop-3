@@ -3,11 +3,12 @@ import React, { useEffect } from 'react';
 const Overlay = ({
   step = null,
   highlights = [],
-  completedActionIds = [],
-  onActionClick = () => {},
+  onRequestHelp = () => {},
+  onGoBack = () => {},
   connectionStatus = 'connecting',
+  urlStatus = 'unknown',
+  helpRequestStatus = null,
 }) => {
-  const completedActionSet = new Set(completedActionIds);
   const actions = step?.actions ?? [];
   const focusItems = highlights.length
     ? highlights
@@ -18,8 +19,17 @@ const Overlay = ({
         description: action.description,
       }));
 
+  // Suppress visual highlight when the participant is on the wrong link —
+  // blinking would otherwise point at elements that no longer exist on the
+  // current page.
+  const shouldHighlight = urlStatus !== 'wrong';
+
   useEffect(() => {
     if (typeof document === 'undefined') {
+      return undefined;
+    }
+
+    if (!shouldHighlight) {
       return undefined;
     }
 
@@ -49,7 +59,25 @@ const Overlay = ({
         element.removeAttribute('data-workshop-highlight');
       }
     };
-  }, [focusItems]);
+  }, [focusItems, shouldHighlight]);
+
+  const banner =
+    urlStatus === 'wrong'
+      ? { color: '#b91c1c', bg: '#fee2e2', text: 'Wrong link — go back' }
+      : urlStatus === 'correct'
+        ? { color: '#166534', bg: '#dcfce7', text: 'You are at the correct link' }
+        : { color: '#475569', bg: '#e2e8f0', text: 'Checking your location…' };
+
+  const hasOpenHelp = helpRequestStatus && helpRequestStatus.status !== 'resolved';
+  const oblong =
+    urlStatus === 'wrong'
+      ? { label: 'Go back', bg: '#b91c1c', onClick: onGoBack, disabled: false }
+      : {
+          label: hasOpenHelp ? 'Help requested' : 'Ask for help',
+          bg: hasOpenHelp ? '#fdba74' : '#ea580c',
+          onClick: onRequestHelp,
+          disabled: hasOpenHelp || connectionStatus !== 'connected',
+        };
 
   return (
     <section
@@ -94,6 +122,21 @@ const Overlay = ({
           >
             Overlay guidance
           </div>
+          <div
+            style={{
+              display: 'inline-flex',
+              marginLeft: '10px',
+              padding: '4px 10px',
+              borderRadius: '999px',
+              backgroundColor: banner.bg,
+              color: banner.color,
+              fontWeight: 800,
+              fontSize: '0.8rem',
+              letterSpacing: '0.4px',
+            }}
+          >
+            {banner.text}
+          </div>
           <h2 style={{ margin: '12px 0 8px' }}>{step?.title ?? 'Waiting for the presenter'}</h2>
           {step?.phase ? <div style={{ marginBottom: '8px', color: '#075985', fontWeight: 700 }}>{step.phase}</div> : null}
           <p style={{ margin: 0, color: '#475569' }}>
@@ -122,70 +165,41 @@ const Overlay = ({
 
       <div style={{ marginTop: '18px', display: 'grid', gap: '12px' }}>
         {focusItems.length ? (
-          focusItems.map((item) => {
-            const action = actions.find((candidate) => candidate.id === item.actionId) ?? null;
-            const isCompleted = action ? completedActionSet.has(action.id) : false;
-
-            return (
-              <article
-                key={item.actionId}
-                style={{
-                  display: 'grid',
-                  gap: '8px',
-                  borderRadius: '14px',
-                  border: isCompleted ? '1px solid #86efac' : '1px solid #38bdf8',
-                  backgroundColor: isCompleted ? '#f0fdf4' : '#f8fafc',
-                  padding: '14px 16px',
-                  animation: isCompleted ? 'none' : 'overlayPulse 1.8s ease-out infinite',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-                  <strong>{item.label}</strong>
-                  <span style={{ color: isCompleted ? '#166534' : '#475569', fontWeight: 600 }}>
-                    {action ? (isCompleted ? 'Completed' : 'Waiting') : 'Highlighted'}
-                  </span>
-                </div>
-                {item.selector ? (
-                  <code
-                    style={{
-                      display: 'inline-block',
-                      padding: '6px 8px',
-                      borderRadius: '8px',
-                      backgroundColor: '#e2e8f0',
-                      color: '#0f172a',
-                      width: 'fit-content',
-                    }}
-                  >
-                    {item.selector}
-                  </code>
-                ) : null}
-                {item.description ? <p style={{ margin: 0, color: '#475569' }}>{item.description}</p> : null}
-                {action ? (
-                  <button
-                    type="button"
-                    onClick={() => onActionClick(action.id)}
-                    disabled={isCompleted}
-                    style={{
-                      width: 'fit-content',
-                      border: 'none',
-                      borderRadius: '10px',
-                      padding: '10px 14px',
-                      backgroundColor: isCompleted ? '#bbf7d0' : '#0f172a',
-                      color: isCompleted ? '#166534' : '#ffffff',
-                      fontWeight: 700,
-                      cursor: isCompleted ? 'default' : 'pointer',
-                    }}
-                  >
-                    {isCompleted ? 'Action completed' : 'Mark action complete'}
-                  </button>
-                ) : (
-                  <div style={{ color: '#475569', fontWeight: 600 }}>
-                    Watch for the blinking highlight on the target area.
-                  </div>
-                )}
-              </article>
-            );
-          })
+          focusItems.map((item) => (
+            <article
+              key={item.actionId}
+              style={{
+                display: 'grid',
+                gap: '8px',
+                borderRadius: '14px',
+                border: '1px solid #38bdf8',
+                backgroundColor: '#f8fafc',
+                padding: '14px 16px',
+                animation: shouldHighlight ? 'overlayPulse 1.8s ease-out infinite' : 'none',
+                opacity: shouldHighlight ? 1 : 0.5,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                <strong>{item.label}</strong>
+                <span style={{ color: '#475569', fontWeight: 600 }}>Highlighted</span>
+              </div>
+              {item.selector ? (
+                <code
+                  style={{
+                    display: 'inline-block',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    backgroundColor: '#e2e8f0',
+                    color: '#0f172a',
+                    width: 'fit-content',
+                  }}
+                >
+                  {item.selector}
+                </code>
+              ) : null}
+              {item.description ? <p style={{ margin: 0, color: '#475569' }}>{item.description}</p> : null}
+            </article>
+          ))
         ) : (
           <div
             style={{
@@ -198,6 +212,26 @@ const Overlay = ({
             No highlighted actions are available for the current step yet.
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={oblong.onClick}
+          disabled={oblong.disabled}
+          style={{
+            justifySelf: 'stretch',
+            border: 'none',
+            borderRadius: '999px',
+            padding: '14px 18px',
+            backgroundColor: oblong.bg,
+            color: '#ffffff',
+            fontWeight: 800,
+            fontSize: '1rem',
+            cursor: oblong.disabled ? 'default' : 'pointer',
+            marginTop: '4px',
+          }}
+        >
+          {oblong.label}
+        </button>
       </div>
     </section>
   );

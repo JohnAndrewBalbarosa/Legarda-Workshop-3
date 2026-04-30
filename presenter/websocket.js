@@ -1,4 +1,5 @@
 import { WebSocketServer } from 'ws';
+import { createTranslationService } from './modules/TranslationService.js';
 
 const OPEN_READY_STATE = 1;
 
@@ -20,6 +21,7 @@ export function createPresenterWebSocketServer({
   server,
   stepManager,
   progressTracker,
+  translationService = null,
   onAutoAdvance = () => {},
   onStateChange = () => {},
 } = {}) {
@@ -27,6 +29,25 @@ export function createPresenterWebSocketServer({
   const presenters = new Set();
   const ushers = new Map();
   const users = new Map();
+
+  // Translation service is wired here (instead of leaking through the HTTP
+  // layer) so the broadcast callback can reach every connected user socket.
+  const translator =
+    translationService ??
+    createTranslationService({
+      onBroadcast({ recipients, mode, hash, text, content }) {
+        const payload = {
+          type: 'translation_broadcast',
+          mode,
+          hash,
+          text,
+          content,
+        };
+        for (const participantId of recipients) {
+          sendMessage(users.get(participantId), payload);
+        }
+      },
+    });
 
   function getActiveUserIds() {
     return Array.from(users.keys());
@@ -73,6 +94,7 @@ export function createPresenterWebSocketServer({
         currentStepIndex: stepManager.getCurrentStepIndex(),
         totalSteps: stepManager.getStepList().length,
       }).summary,
+      translatorStats: translator.getStats(),
     };
   }
 
@@ -148,6 +170,18 @@ export function createPresenterWebSocketServer({
       users.set(participantId, socket);
       stepManager.registerParticipant(participantId);
       progressTracker.registerParticipant({ participantId, role, seatLabel });
+
+      const seat = translator.assignSeat(participantId);
+      if (seat) {
+        sendMessage(socket, {
+          type: 'translation_seat_assigned',
+          token: seat.token,
+          promptCap: seat.promptCap,
+          promptsUsed: seat.promptsUsed,
+        });
+      } else {
+        sendMessage(socket, { type: 'translation_seat_unavailable' });
+      }
     }
 
     sendMessage(socket, {
@@ -175,7 +209,7 @@ export function createPresenterWebSocketServer({
     }
   }
 
-  function handleUserEvent(socket, message) {
+  async function handleUserEvent(socket, message) {
     const participantId = socket.meta?.participantId;
     const currentStep = stepManager.getCurrentStep();
 
@@ -196,6 +230,42 @@ export function createPresenterWebSocketServer({
         broadcastState('user_step_completed');
       }
 
+      return;
+    }
+
+    if (message.type === 'user.url_report') {
+      progressTracker.setCurrentUrl(participantId, {
+        url: message.url ?? '',
+        urlStatus: message.urlStatus ?? 'unknown',
+        profileId: message.profileId ?? null,
+      });
+      broadcastState('user_url_report');
+      return;
+    }
+
+    if (message.type === 'user.signin_choice') {
+      progressTracker.setSigninChoice(participantId, message.choice);
+      broadcastState('user_signin_choice');
+      return;
+    }
+
+    if (message.type === 'user.translation_lang') {
+      const language = message.language;
+      progressTracker.setTranslationLanguage(participantId, language);
+      translator.setLanguage(participantId, language);
+      broadcastState('user_translation_lang');
+      return;
+    }
+
+    if (message.type === 'user.ai_request' || message.type === 'user.translation_request') {
+      const mode = message.mode || message.language || 'tagalog';
+      const result = await translator.translate({
+        participantId,
+        content: message.content ?? '',
+        mode,
+        otherLang: message.otherLang ?? message.targetLanguage ?? null,
+      });
+      sendMessage(socket, { type: 'translation_result', requestId: message.requestId ?? null, ...result });
       return;
     }
 
@@ -231,7 +301,35 @@ export function createPresenterWebSocketServer({
     }
   }
 
-  function handleUsherEvent(message) {
+  function handleUsherEvent(socket, message) {
+    if (message.type === 'usher.claim') {
+      const claimed = progressTracker.claimHelpRequest({
+        requestId: message.requestId,
+        usherId: socket.meta?.participantId ?? message.usherId ?? '',
+      });
+
+      if (!claimed) return;
+
+      const claimedMessage = {
+        type: 'help_claimed',
+        requestId: claimed.requestId,
+        participantId: claimed.participantId,
+        usherId: claimed.claimedBy,
+        claimedAt: claimed.claimedAt,
+      };
+
+      sendMessage(users.get(claimed.participantId), claimedMessage);
+      for (const usherSocket of ushers.values()) {
+        sendMessage(usherSocket, claimedMessage);
+      }
+      for (const presenterSocket of presenters) {
+        sendMessage(presenterSocket, claimedMessage);
+      }
+
+      broadcastState('help_claimed');
+      return;
+    }
+
     if (message.type !== 'usher.concern_resolved') {
       return;
     }
@@ -270,6 +368,9 @@ export function createPresenterWebSocketServer({
       ushers.delete(participantId);
     } else if (role === 'user') {
       users.delete(participantId);
+      // Hold the seat for `disconnectHoldMs` (10 minutes by default) before
+      // releasing the token back to the pool.
+      translator.releaseSeat(participantId);
     }
 
     broadcastState('participant_left');
@@ -307,11 +408,11 @@ export function createPresenterWebSocketServer({
       }
 
       if (socket.meta?.role === 'usher') {
-        handleUsherEvent(message);
+        handleUsherEvent(socket, message);
         return;
       }
 
-      handleUserEvent(socket, message);
+      Promise.resolve(handleUserEvent(socket, message)).catch(() => {});
     });
 
     socket.on('close', () => {
@@ -323,7 +424,9 @@ export function createPresenterWebSocketServer({
     websocketServer,
     broadcastState,
     getState: buildWorkshopState,
+    translator,
     close() {
+      try { translator.close?.(); } catch {}
       websocketServer.close();
     },
   };

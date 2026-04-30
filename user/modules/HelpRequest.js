@@ -39,6 +39,22 @@ export class HelpRequestManager {
     return { ...request };
   }
 
+  claimRequest(payload = {}) {
+    if (!this.outstandingRequest) {
+      return null;
+    }
+
+    this.outstandingRequest = {
+      ...this.outstandingRequest,
+      ...payload,
+      status: 'claimed',
+      claimedAt: payload.claimedAt ?? new Date().toISOString(),
+    };
+
+    this.onStatusChange({ ...this.outstandingRequest });
+    return { ...this.outstandingRequest };
+  }
+
   acknowledgeRequest(payload = {}) {
     if (!this.outstandingRequest) {
       return null;
