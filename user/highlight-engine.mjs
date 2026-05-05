@@ -25,14 +25,29 @@ import { fileURLToPath } from 'node:url';
 export const PROFILES = [
   {
     id: 'aws-home',
-    label: 'AWS Home — Sign in',
-    match: (u) => u.includes('aws.amazon.com') && !u.includes('console.aws.amazon.com') && !u.includes('signin.aws.amazon.com'),
+    label: 'AWS Home — Sign in to the Console',
+    match: (u) =>
+      u.includes('aws.amazon.com') &&
+      !u.includes('console.aws.amazon.com') &&
+      !u.includes('signin.aws.amazon.com') &&
+      !u.includes('signup.aws.amazon.com') &&
+      !u.includes('portal.aws.amazon.com'),
     selectors: [
+      // 2026 Rigel design system: hero CTA is `<a role="button">` with a
+      // semantic data-rigel-analytics attribute. Hashed `rghr_*` classes
+      // are unstable — anchor on the analytics attribute + bare host href.
+      'a[data-rigel-analytics*="\\"variant\\":\\"primary\\""][href="https://console.aws.amazon.com/"]',
+      'a[role="button"][href="https://console.aws.amazon.com/"]',
+      'a[href="https://console.aws.amazon.com/"][data-rigel-analytics*="Button"]',
+      // Legacy lb-btn skin (older home page variants — kept as fallback)
+      'a.lb-btn-orange[href*="console.aws.amazon.com"]',
+      'a.lb-btn[href*="console.aws.amazon.com/console/home"]',
       'a[data-testid="signin-button"]',
-      'a[href*="console.aws.amazon.com"]',
+      'header a[href*="console.aws.amazon.com/console/home"]',
+      'a[href="https://console.aws.amazon.com/console/home"]',
+      'a[href^="https://console.aws.amazon.com/console/home"]',
       'text=Sign in to the Console',
       'text=Sign In to the Console',
-      'text=Sign in',
     ],
   },
   {
@@ -48,77 +63,48 @@ export const PROFILES = [
       u.includes('signin.aws.amazon.com/oauth'),
     selectors: [],
   },
+  // Sign-in corridor profiles: no blinking by design. Real users have many
+  // valid paths through sign-in (root, IAM, federated, password manager
+  // autofill, hardware MFA, email OTP, …). Highlighting one path would
+  // confuse users on a different path. The signinChoice the user picked
+  // upstream is still tracked and forwarded to the presenter for analytics
+  // (how many pick root vs. IAM vs. new account).
   {
     id: 'signin-root-existing',
-    label: 'Sign-in — Root email account',
+    label: 'Sign-in — Root email account (analytics only)',
     match: (u) => u.includes('signin.aws.amazon.com'),
     gateOnChoice: ['root'],
-    selectors: [
-      '#root_account_signin',
-      '[data-testid="not-sign-in-with-iam"]',
-      'text=Sign in using root user email',
-      'text=Root user',
-    ],
+    selectors: [],
   },
   {
     id: 'signin-root-iam',
-    label: 'Sign-in — IAM user credentials',
+    label: 'Sign-in — IAM user credentials (analytics only)',
     match: (u) => u.includes('signin.aws.amazon.com'),
     gateOnChoice: ['iam'],
-    selectors: [
-      '[data-testid="iam_user_signin"]',
-      '#iam_user_radio_button',
-      'text=Sign in with IAM user credentials',
-      'text=IAM user',
-    ],
+    selectors: [],
   },
   {
     id: 'signup-root-new',
-    label: 'Sign-up — Create a new AWS account',
-    // Activated only after user picks "new". May redirect to a signup URL once the
-    // user actually clicks Create-an-AWS-account; we keep the same matcher so the
-    // overlay stays correct between the picker and the redirect.
+    label: 'Sign-up — Create a new AWS account (analytics only)',
     match: (u) =>
       u.includes('signin.aws.amazon.com/signin') ||
       u.includes('signin.aws.amazon.com/?') ||
       u.includes('signup.aws.amazon.com') ||
       u.includes('portal.aws.amazon.com/billing/signup'),
     gateOnChoice: ['new'],
-    selectors: [
-      'a[href*="signup"]',
-      'a[href*="aws.amazon.com/resources/create-account"]',
-      'button:has-text("Create a new AWS account")',
-      'text=Create a new AWS account',
-      'text=Create an AWS account',
-    ],
+    selectors: [],
   },
   {
     id: 'signin-password',
-    label: 'Sign-in — Password',
+    label: 'Sign-in — Password (no highlight)',
     match: (u) => u.includes('signin.aws.amazon.com/authenticate') || u.includes('signin.aws.amazon.com/password'),
-    selectors: [
-      '#password',
-      'input[type="password"]',
-      '[data-testid="signin_button"]',
-      '[data-testid="signin-button"]',
-      'button[type="submit"]',
-      'text=Sign in',
-    ],
+    selectors: [],
   },
   {
     id: 'signin-mfa',
-    label: 'Sign-in — Email / MFA Code',
+    label: 'Sign-in — Email / MFA Code (no highlight)',
     match: (u) => u.includes('signin.aws.amazon.com/mfa') || u.includes('signin.aws.amazon.com/email-otp') || u.includes('signin.aws.amazon.com/challenge'),
-    selectors: [
-      'input[name="otpCode"]',
-      'input[autocomplete="one-time-code"]',
-      'input[name="code"]',
-      'input[name="mfacode"]',
-      '[data-testid="email-code-submit-button"]',
-      'button[type="submit"]',
-      'text=Verify and continue',
-      'text=Submit',
-    ],
+    selectors: [],
   },
   {
     id: 'console-home',

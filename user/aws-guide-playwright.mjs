@@ -1,6 +1,18 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { mkdirSync, appendFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { expectedUrlMatcher, getHighlightsForUrl, injectBlinkInAllFrames } from './highlight-engine.mjs';
+
+const ANALYTICS_DIR = fileURLToPath(new URL('./logs/', import.meta.url));
+const ANALYTICS_FILE = fileURLToPath(new URL('./logs/signin-analytics.jsonl', import.meta.url));
+try { mkdirSync(ANALYTICS_DIR, { recursive: true }); } catch {}
+
+function logAnalytics(event) {
+  try {
+    appendFileSync(ANALYTICS_FILE, JSON.stringify({ ts: Date.now(), userId: process.env.USER_ID || 'user-1', ...event }) + '\n');
+  } catch (err) { console.error('[analytics] write failed:', err.message); }
+}
 
 const host = process.env.USER_HOST || process.env.HOST || '192.168.1.244';
 const presenterWs = process.env.PRESENTER_WS || 'ws://192.168.1.244:5050';
@@ -242,6 +254,7 @@ async function run() {
   await awsPage.exposeFunction('__setSigninChoice', (choice) => {
     if (choice !== 'iam' && choice !== 'root' && choice !== 'new') return;
     signinChoice = choice;
+    logAnalytics({ kind: 'signin_choice', choice });
     if (websocket?.readyState === 1) {
       websocket.send(JSON.stringify({ type: 'user.signin_choice', choice }));
     }

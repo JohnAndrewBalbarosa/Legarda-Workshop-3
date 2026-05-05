@@ -35,3 +35,8 @@ Thumbs.db
 *.bak
 *.tmp
 user/behavior_log.jsonl
+
+# Recorded sessions and analytics (per-user, non-shared)
+interaction-recorder/logs/
+presenter/logs/
+user/logs/

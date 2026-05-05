@@ -1,17 +1,29 @@
 {
   "aws-home": [
     {
+      "selector": "text=Create account",
+      "count": 2
+    },
+    {
       "selector": "text=Sign in",
-      "count": 1
+      "count": 2
     }
   ],
   "console-home": [
     {
-      "selector": "[data-testid=\"awsc-concierge-input\"]",
+      "selector": "#awsc-concierge-input",
       "count": 1
     },
     {
-      "selector": "[data-testid=\"services-search-result-link-ec2\"]",
+      "selector": "text=EC2",
+      "count": 1
+    },
+    {
+      "selector": "text=Virtual Servers in the Cloud",
+      "count": 1
+    },
+    {
+      "selector": "[href*=\"home\"]",
       "count": 1
     }
   ]
