@@ -173,7 +173,8 @@ I-click yung extension icon sa toolbar para mag-open yung popup. Lagyan ng Parti
 ![Extension popup configuration](docs/screenshots/extension-popup.png)
 
 - **Participant ID** — kahit anong unique name (e.g. `user-1`, `juan-a1`). Ito yung makikita ng presenter at usher.
-- **Presenter WebSocket** — `ws://<PRESENTER_IP>:5050` (palitan ang `<PRESENTER_IP>` ng actual IP ng presenter machine). Para sa single-machine test, `ws://127.0.0.1:5050`.
+- **Presenter WebSocket** — **default ay `ws://workshop.local:5050`** at gagana siya nang automatic kapag same WiFi kayo ng presenter. Yung presenter side nag-broadcast siya via mDNS (`workshop.local`) at na-rresolve ito by Chrome out of the box sa Windows/macOS/Linux. Walang IP entry kailangan most of the time.
+- Pag blocked yung multicast sa network niyo (some corporate WiFi), papalitan mo na lang ng `ws://<PRESENTER_IP>:5050` — yung LAN IP ng presenter machine, makikita doon sa terminal output pag nag-start si presenter ng server.
 
 ### Sa AWS Home page
 
@@ -201,7 +202,12 @@ Yung overlay panel sa top-right palagi visible — pwede mong i-minimize via "Mi
 
 ### Pag nawalan ng connection
 
-Kung nawala connection sa presenter (e.g. wala ka sa same WiFi, o nag-iba IP ng presenter), magkakaroon ng modal sa loob ng AWS page na hihingin yung tamang Presenter IP. I-type mo lang at click Reconnect — port 5050 automatic.
+Kung nawala connection sa presenter (e.g. wala ka sa same WiFi, o nag-iba IP ng presenter), magkakaroon ng modal sa loob ng AWS page:
+
+- **Reconnect** — i-type mo lang yung Presenter IP at click; port 5050 automatic.
+- **Continue without presenter** — mawawala yung modal at babalik ka sa AWS page. Yung red ripple highlights tutuloy gumana kasi URL-based ang detection — mawawala lang yung presenter-driven step text at help button routing. Useful pag stand-alone mo ginagamit yung extension as a learning aid, walang presenter session.
+
+Yung overlay header magpapakita ng "OFFLINE MODE" (grey) sa halip na "WORKSHOP ACTIVE" (blue) kapag nasa offline state.
 
 ### I-regenerate yung extension screenshots
 

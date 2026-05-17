@@ -1,7 +1,9 @@
 import http from 'node:http';
 import path from 'node:path';
+import os from 'node:os';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { Bonjour } from 'bonjour-service';
 import { formatReportAsText } from './modules/ReportGenerator.js';
 import { StepManager } from './modules/StepManager.js';
 import { WORKSHOP_WORKFLOW_REFERENCE, getDefaultWorkshopSteps } from './modules/WorkshopPlan.js';
@@ -212,6 +214,46 @@ export function createPresenterServer({
 
 export default createPresenterServer;
 
+// Pick the first non-loopback IPv4 address on this host so we can print it as
+// the manual-IP fallback for participants whose network blocks mDNS.
+function detectLanIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const info of interfaces[name] || []) {
+      if (info.family === 'IPv4' && !info.internal && !info.address.startsWith('169.')) {
+        return info.address;
+      }
+    }
+  }
+  return null;
+}
+
+function publishMdnsService(port) {
+  // Bonjour advertises the presenter as `workshop._workshop._tcp.local` which
+  // Chrome / Safari / Edge resolve out of the box on the LAN — participants
+  // can connect to `ws://workshop.local:5050` without knowing any IP.
+  //
+  // Skip publishing silently if the runtime blocks multicast (e.g. some
+  // corporate WiFi) so the server itself still comes up cleanly.
+  try {
+    const bonjour = new Bonjour();
+    const service = bonjour.publish({
+      name: 'workshop',
+      type: 'workshop',
+      port,
+      host: 'workshop.local',
+      txt: { version: '1', path: '/presenter' },
+    });
+    service.on('error', (error) => {
+      console.warn('[mdns] publish error:', error.message);
+    });
+    return bonjour;
+  } catch (error) {
+    console.warn('[mdns] disabled:', error.message);
+    return null;
+  }
+}
+
 const entryFilePath = process.argv[1];
 
 if (entryFilePath && currentFilePath === entryFilePath) {
@@ -226,6 +268,22 @@ if (entryFilePath && currentFilePath === entryFilePath) {
     .start()
     .then(({ host, port }) => {
       console.log(`Presenter server listening on http://${host}:${port}`);
+      const bonjour = publishMdnsService(port);
+      if (bonjour) {
+        const lanIp = detectLanIp();
+        console.log('');
+        console.log('Participants can connect via:');
+        console.log(`  ws://workshop.local:${port}   (mDNS — no IP needed)`);
+        if (lanIp) {
+          console.log(`  ws://${lanIp}:${port}        (LAN IP fallback)`);
+        }
+        console.log('');
+        const shutdown = () => {
+          try { bonjour.unpublishAll(() => bonjour.destroy()); } catch {}
+        };
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
+      }
     })
     .catch((error) => {
       console.error('Failed to start presenter server.');

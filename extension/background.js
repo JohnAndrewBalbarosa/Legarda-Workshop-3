@@ -6,11 +6,17 @@
 // MV3 service workers can be terminated when idle — we lazily reconnect on any
 // incoming message and on every tabs/onUpdated event for AWS hosts.
 
-const DEFAULT_WS = 'ws://127.0.0.1:5050';
+// Default WS uses the mDNS hostname the presenter advertises (`workshop.local`
+// — resolved natively by Chrome on Windows/macOS/Linux). If the network blocks
+// multicast, the fallback ladder below tries the user's previously-saved IP
+// (if any), and then surfaces the manual IP prompt.
+const DEFAULT_WS = 'ws://workshop.local:5050';
 const HOST_REGEX = /^https:\/\/([a-z0-9-]+\.)*aws\.amazon\.com\//i;
 
 let socket = null;
 let socketUrl = '';
+let savedFallbackUrl = '';     // user's previously-saved IP, if different from socketUrl
+let triedFallback = false;     // have we already swapped to the fallback this cycle?
 let reconnectTimer = null;
 let latestState = null;
 let userId = '';
@@ -24,13 +30,18 @@ let waitingForIp = false;
 // presenter-driven state (current step, help routing) is unavailable.
 let offlineMode = false;
 const FAILURE_THRESHOLD = 5;
+const FALLBACK_AFTER_FAILURES = 3;
 
 async function loadSettings() {
   const stored = await chrome.storage.sync.get(['presenterWs', 'userId']);
-  socketUrl = stored.presenterWs || DEFAULT_WS;
+  // We always START on the mDNS hostname so a fresh / re-flashed network just
+  // works. If the user has saved a manual IP in the popup, we keep it as the
+  // fallback target — not the primary.
+  socketUrl = DEFAULT_WS;
+  savedFallbackUrl = stored.presenterWs && stored.presenterWs !== DEFAULT_WS ? stored.presenterWs : '';
   userId = stored.userId || `user-${Math.random().toString(36).slice(2, 8)}`;
   if (!stored.userId) await chrome.storage.sync.set({ userId });
-  if (!stored.presenterWs) await chrome.storage.sync.set({ presenterWs: socketUrl });
+  if (!stored.presenterWs) await chrome.storage.sync.set({ presenterWs: DEFAULT_WS });
 }
 
 async function broadcastToTabs(message) {
@@ -59,6 +70,7 @@ function connect() {
   socket.addEventListener('open', () => {
     failureCount = 0;
     waitingForIp = false;
+    triedFallback = false;
     broadcastToTabs({ kind: 'presenter_connected' });
     try {
       socket.send(JSON.stringify({ type: 'hello', role: 'user', participantId: userId }));
@@ -78,6 +90,20 @@ function connect() {
   socket.addEventListener('close', () => {
     if (offlineMode) return;
     failureCount++;
+    // After a few failed attempts on the primary URL, swap to the saved
+    // fallback IP (if any) before escalating to the manual prompt.
+    if (
+      failureCount >= FALLBACK_AFTER_FAILURES &&
+      !triedFallback &&
+      savedFallbackUrl &&
+      savedFallbackUrl !== socketUrl
+    ) {
+      triedFallback = true;
+      socketUrl = savedFallbackUrl;
+      failureCount = 0;
+      scheduleReconnect();
+      return;
+    }
     if (failureCount >= FAILURE_THRESHOLD && !waitingForIp) {
       waitingForIp = true;
       broadcastToTabs({ kind: 'request_presenter_ip', currentUrl: socketUrl });
