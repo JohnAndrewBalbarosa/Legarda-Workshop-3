@@ -214,16 +214,46 @@ async function pauseForManualSignIn(context, timeoutMinutes = 10) {
   throw new Error('Timed out waiting for manual sign in.');
 }
 
+// Race a list of selectors and resolve when any of them is visible. The AWS
+// console SPA mounts asynchronously after the URL changes, and different
+// regions/accounts ship slightly different dashboards — so we accept any of
+// several "this page actually rendered" signals.
+async function waitForAny(page, selectors, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    for (const selector of selectors) {
+      try {
+        const handle = await page.$(selector);
+        if (handle && (await handle.isVisible())) return selector;
+      } catch {}
+    }
+    await wait(500);
+  }
+  return null;
+}
+
 async function captureConsoleHome(page) {
-  // Already on console home (resumed page). Give the SPA a moment to settle so
-  // the search bar is mounted and the highlight engine has applied selectors.
-  try {
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-  } catch {}
-  try {
-    await page.waitForSelector('#workshop-host', { timeout: 10000 });
-  } catch {}
-  await wait(3500);
+  // The console-home highlight profile targets the concierge search bar — wait
+  // until that (or a known dashboard widget) is actually painted before
+  // screenshotting, otherwise the SPA loading splash is all we get.
+  const hit = await waitForAny(
+    page,
+    [
+      'input#awsc-concierge-input',
+      'input[data-testid="awsc-concierge-input"]',
+      'input[placeholder="Search"]',
+      'input[aria-label="Search"]',
+      '[data-testid="recently-visited-services"]',
+      'awsui-app-layout',
+    ],
+    45000,
+  );
+  if (!hit) {
+    console.warn('Console home did not finish rendering within 45s; capturing whatever is on screen.');
+  }
+  // Give the extension's MutationObserver a couple of cycles to attach the
+  // red-ripple data attribute and scroll the search bar into view.
+  await wait(2500);
   const outputPath = path.join(SCREENSHOTS_DIR, 'extension-console-home.png');
   await page.screenshot({ path: outputPath, fullPage: false });
   return outputPath;
@@ -231,17 +261,33 @@ async function captureConsoleHome(page) {
 
 async function captureEc2Dashboard(page) {
   try {
-    await page.goto('https://console.aws.amazon.com/ec2/home', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    // 'commit' resolves as soon as navigation starts — much more reliable on
+    // slow AWS console pages than 'domcontentloaded', which often misses the
+    // window because the SPA never fires a clean DOMContentLoaded.
+    await page.goto('https://console.aws.amazon.com/ec2/home', { waitUntil: 'commit', timeout: 60000 });
   } catch (error) {
     console.warn('Could not navigate to EC2 dashboard:', error.message);
     return null;
   }
-  try {
-    await page.waitForLoadState('networkidle', { timeout: 20000 });
-  } catch {}
-  // EC2 dashboard is region-aware; user may land on a region picker. Just give
-  // it time to settle and capture whatever the overlay paints.
-  await wait(4500);
+  // Wait for any EC2-specific UI to actually paint — the Launch instance CTA
+  // is the highlight target, but the dashboard tiles and resource summary
+  // panels also confirm the page rendered.
+  const hit = await waitForAny(
+    page,
+    [
+      'button[data-testid="launch-instance"]',
+      'button[data-analytics-funnel-substep="launch-instance"]',
+      'a[href*="LaunchInstances"]',
+      'awsui-button button',
+      '[data-testid="resource-counts"]',
+      'h1:has-text("EC2")',
+    ],
+    60000,
+  );
+  if (!hit) {
+    console.warn('EC2 dashboard did not finish rendering within 60s; capturing whatever is on screen.');
+  }
+  await wait(3500);
   const outputPath = path.join(SCREENSHOTS_DIR, 'extension-ec2-dashboard.png');
   await page.screenshot({ path: outputPath, fullPage: false });
   return outputPath;
