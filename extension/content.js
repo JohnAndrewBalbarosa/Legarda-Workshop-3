@@ -46,7 +46,12 @@
     const rawUrlStatus = engine.expectedUrlMatcher(expectedProfile, url);
     const urlStatus = rawUrlStatus === 'wrong' ? 'unknown' : rawUrlStatus;
     const computed = engine.getHighlightsForUrl(url, { signinChoice });
-    const showSigninPicker = computed.id === 'signin-choice' && signinChoice === null;
+    // Surface the sign-in type picker as early as the AWS home page so the
+    // choice is logged BEFORE the user clicks "Sign in". The usher can then
+    // see whether the participant is using root, IAM, or signing up new.
+    // The picker is passive — no red ripple on the page while it is shown.
+    const showSigninPicker =
+      signinChoice === null && (computed.id === 'signin-choice' || computed.id === 'aws-home');
     const isLaunchPage = url.includes('#LaunchInstances:');
 
     if (url !== lastReportedUrl || urlStatus !== lastUrlStatus) {
@@ -57,7 +62,9 @@
       } catch {}
     }
 
-    engine.setSelectors(computed.selectors);
+    // No blinking while the sign-in picker is asking the user for their choice
+    // — keep the page calm until they pick root / IAM / new.
+    engine.setSelectors(showSigninPicker ? [] : computed.selectors);
 
     let host = document.getElementById('workshop-host');
     if (!host) {
