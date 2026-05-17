@@ -20,7 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
@@ -305,6 +305,15 @@ async function main() {
     closeSockets(sockets);
     presenter.kill('SIGTERM');
     await wait(300);
+
+    // Scorched-earth cleanup of the throwaway Chrome profile so nothing
+    // (cookies, extension storage, AWS session) persists on disk after the run.
+    try {
+      rmSync(USER_DATA_DIR, { recursive: true, force: true, maxRetries: 3 });
+      console.log(`Removed throwaway profile: ${USER_DATA_DIR}`);
+    } catch (error) {
+      console.warn(`Could not remove ${USER_DATA_DIR}: ${error.message}`);
+    }
   }
 }
 
