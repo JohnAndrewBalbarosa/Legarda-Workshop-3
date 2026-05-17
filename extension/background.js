@@ -18,6 +18,11 @@ let signinChoice = null;
 let aiLanguage = 'No Thanks';
 let failureCount = 0;
 let waitingForIp = false;
+// When the user clicks "Continue without presenter" in the IP prompt, we stop
+// trying to reconnect and stop popping up the modal. URL-based highlighting in
+// the content script keeps working independently of this flag — only the
+// presenter-driven state (current step, help routing) is unavailable.
+let offlineMode = false;
 const FAILURE_THRESHOLD = 5;
 
 async function loadSettings() {
@@ -40,6 +45,7 @@ async function broadcastToTabs(message) {
 }
 
 function connect() {
+  if (offlineMode) return;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   if (!socketUrl) return;
 
@@ -70,6 +76,7 @@ function connect() {
     } catch {}
   });
   socket.addEventListener('close', () => {
+    if (offlineMode) return;
     failureCount++;
     if (failureCount >= FAILURE_THRESHOLD && !waitingForIp) {
       waitingForIp = true;
@@ -149,6 +156,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     socketUrl = message.url || DEFAULT_WS;
     failureCount = 0;
     waitingForIp = false;
+    offlineMode = false;
     chrome.storage.sync.set({ presenterWs: socketUrl });
     try { socket?.close(); } catch {}
     connect();
@@ -159,6 +167,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.sync.set({ userId });
     try { socket?.close(); } catch {}
     connect();
+    return;
+  }
+  if (message.kind === 'enter_offline_mode') {
+    offlineMode = true;
+    waitingForIp = false;
+    failureCount = 0;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    try { socket?.close(); } catch {}
+    socket = null;
+    // Push a synthetic empty state so the overlay clears its "connecting…"
+    // status and the in-page highlights keep running off URL profiles alone.
+    broadcastToTabs({ kind: 'workshop_state', state: latestState, signinChoice, aiLanguage, userId, offline: true });
     return;
   }
 });

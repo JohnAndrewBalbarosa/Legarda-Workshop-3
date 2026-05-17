@@ -24,6 +24,7 @@
   let isMinimized = false;
   let lastReportedUrl = '';
   let lastUrlStatus = '';
+  let isOffline = false;
 
   function findParticipant(state) {
     if (!state || !Array.isArray(state.participants) || !userId) return null;
@@ -79,7 +80,13 @@
       : { color: '#475569', bg: '#e2e8f0', text: 'Continue at your own pace' };
 
     const stepTitle = currentStep?.title || 'AWS Guide';
-    const stepDesc = currentStep?.description || 'Connecting to the presenter…';
+    const stepDesc =
+      currentStep?.description ||
+      (isOffline
+        ? 'Offline mode — highlights guided by the page URL only.'
+        : 'Connecting to the presenter…');
+    const headerLabel = isOffline ? 'OFFLINE MODE' : 'WORKSHOP ACTIVE';
+    const headerColor = isOffline ? '#94a3b8' : '#0284c7';
 
     host.shadowRoot.innerHTML = `
       <style>
@@ -97,7 +104,7 @@
       <div class="circle" id="expand">AWS</div>
       <div class="panel">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <span style="font-size:0.6rem; color:#0284c7; font-weight:bold;">WORKSHOP ACTIVE</span>
+          <span style="font-size:0.6rem; color:${headerColor}; font-weight:bold;">${headerLabel}</span>
           <button id="min" style="background:none; border:none; text-decoration:underline; font-size:0.6rem; color:#64748b; cursor:pointer;">Minimize</button>
         </div>
         <div class="badge" style="background:${banner.bg}; color:${banner.color}; display:inline-block; margin-bottom:8px;">${banner.text}</div>
@@ -176,15 +183,18 @@
         label { display: block; font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
         input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; box-sizing: border-box; }
         input:focus { outline: 2px solid #dc2626; border-color: transparent; }
-        button { margin-top: 12px; width: 100%; padding: 10px; background: #dc2626; color: white; border: none; border-radius: 999px; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
+        .primary { margin-top: 12px; width: 100%; padding: 10px; background: #dc2626; color: white; border: none; border-radius: 999px; font-weight: 800; font-size: 0.8rem; cursor: pointer; }
+        .secondary { margin-top: 8px; width: 100%; padding: 8px; background: transparent; color: #64748b; border: 1px solid #cbd5e1; border-radius: 999px; font-weight: 700; font-size: 0.75rem; cursor: pointer; }
+        .secondary:hover { background: #f8fafc; color: #1e293b; }
         .hint { margin-top: 8px; font-size: 0.65rem; color: #94a3b8; text-align: center; }
       </style>
       <div class="card">
         <h2>Presenter not found</h2>
-        <p>The workshop guide lost connection. Enter the presenter's private IP address to reconnect.</p>
+        <p>The workshop guide lost connection. Enter the presenter's private IP address to reconnect, or continue without the presenter — the on-page highlights will still work.</p>
         <label for="ip">Presenter IP</label>
         <input id="ip" type="text" placeholder="192.168.1.x" value="${escapeHtml(currentIp)}" />
-        <button id="connect">Reconnect</button>
+        <button class="primary" id="connect">Reconnect</button>
+        <button class="secondary" id="offline">Continue without presenter</button>
         <div class="hint">Port 5050 is used automatically.</div>
       </div>
     `;
@@ -201,6 +211,16 @@
       host.remove();
     };
 
+    const doOffline = () => {
+      // Drops the modal and tells the background to stop trying to reconnect.
+      // URL-based highlighting in highlight-engine.js keeps working — only
+      // presenter-driven step state goes away.
+      chrome.runtime.sendMessage({ kind: 'enter_offline_mode' });
+      host.remove();
+    };
+
+    sr.querySelector('#offline').onclick = doOffline;
+
     sr.querySelector('#connect').onclick = doConnect;
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doConnect(); });
   }
@@ -212,13 +232,16 @@
       signinChoice = message.signinChoice ?? signinChoice;
       aiLanguage = message.aiLanguage ?? aiLanguage;
       userId = message.userId || userId;
+      if (message.offline === true) isOffline = true;
       if (isTopFrame) renderOverlay(); else applyForCurrentUrl();
     }
-    if (message.kind === 'request_presenter_ip' && isTopFrame) {
+    if (message.kind === 'request_presenter_ip' && isTopFrame && !isOffline) {
       renderIpPrompt(message.currentUrl || '');
     }
     if (message.kind === 'presenter_connected' && isTopFrame) {
+      isOffline = false;
       document.getElementById('workshop-ip-prompt')?.remove();
+      renderOverlay();
     }
   });
 
