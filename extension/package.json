@@ -1,0 +1,13 @@
+{
+  "name": "workshop-guide-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "zip": "node -e \"const {execSync}=require('child_process');execSync('powershell Compress-Archive -Path manifest.json,background.js,content.js,highlight-engine.js,popup.html,popup.js -DestinationPath workshop-guide.zip -Force',{stdio:'inherit'})\"",
+    "upload": "chrome-webstore-upload upload --source workshop-guide.zip --extension-id $npm_config_ext_id",
+    "publish": "chrome-webstore-upload publish --extension-id $npm_config_ext_id"
+  },
+  "devDependencies": {
+    "chrome-webstore-upload-cli": "^3.0.0"
+  }
+}

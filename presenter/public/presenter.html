@@ -13,6 +13,7 @@
           <h1>Presenter Dashboard</h1>
           <p>Control workshop pacing, track room progress, and monitor help queue.</p>
           <p class="subtle" id="presenter-meta">Preparing connection...</p>
+          <p class="subtle" id="presenter-metrics" style="font-weight:600;color:#0f172a;"></p>
         </div>
         <span class="status-pill status-connecting" id="connection-status">connecting</span>
       </section>
@@ -22,7 +23,14 @@
         <button class="button button-primary" id="btn-next-step" type="button">Next Step</button>
         <select id="step-select" aria-label="Select workshop step"></select>
         <button class="button" id="btn-set-step" type="button">Go To Step</button>
+        <a class="button button-link" href="/slides.html" target="_blank" rel="noopener">Open Slides</a>
         <a class="button button-link" href="/report.txt" target="_blank" rel="noopener">Export Report</a>
+      </section>
+
+      <section class="card">
+        <h2>Phase Distribution</h2>
+        <p class="subtle">Following the slide / Stuck behind / Ahead of slide.</p>
+        <div id="presenter-phase-distribution"></div>
       </section>
 
       <section class="grid two-col">

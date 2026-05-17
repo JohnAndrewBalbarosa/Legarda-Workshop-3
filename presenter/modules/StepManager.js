@@ -210,6 +210,30 @@ export class StepManager {
     }));
   }
 
+  getPhaseDistribution(participantIds = []) {
+    const slideIndex = this.getCurrentStepIndex();
+    const phases = new Map();
+    for (const [index, step] of this.steps.entries()) {
+      const phase = step.phase || 'Unphased';
+      if (!phases.has(phase)) {
+        phases.set(phase, { phase, stepIndices: [], following: 0, stuck: 0, ahead: 0, total: 0 });
+      }
+      phases.get(phase).stepIndices.push(index);
+    }
+    for (const id of participantIds) {
+      const idx = this.getParticipantStepIndex(id);
+      const step = this.steps[idx];
+      const phase = step?.phase || 'Unphased';
+      const bucket = phases.get(phase);
+      if (!bucket) continue;
+      bucket.total += 1;
+      if (idx < slideIndex) bucket.stuck += 1;
+      else if (idx === slideIndex) bucket.following += 1;
+      else bucket.ahead += 1;
+    }
+    return Array.from(phases.values());
+  }
+
   getActionCompletionCount(stepIndex, actionId, participantIds = []) {
     const step = this.steps[stepIndex];
     if (!step) return 0;

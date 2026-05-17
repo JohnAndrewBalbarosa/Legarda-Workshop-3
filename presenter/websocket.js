@@ -1,5 +1,16 @@
 import { WebSocketServer } from 'ws';
 import { createTranslationService } from './modules/TranslationService.js';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+const METRICS_LOG_PATH = process.env.METRICS_LOG_PATH || 'presenter/logs/metrics.jsonl';
+try { mkdirSync(dirname(METRICS_LOG_PATH), { recursive: true }); } catch {}
+
+function logMetric(event) {
+  try {
+    appendFileSync(METRICS_LOG_PATH, JSON.stringify({ ts: new Date().toISOString(), ...event }) + '\n');
+  } catch {}
+}
 
 const OPEN_READY_STATE = 1;
 
@@ -78,7 +89,16 @@ export function createPresenterWebSocketServer({
       };
     });
     const stepDistribution = stepManager.getStepDistribution(activeUserIds);
+    const phaseDistribution = stepManager.getPhaseDistribution(activeUserIds);
     const minPersonalStepIndex = stepManager.getMinPersonalStepIndex(activeUserIds);
+    const totalActive = activeUserIds.length;
+    const followingCount = activeParticipants.filter(
+      (p) => Number.isInteger(p.personalStepIndex) && p.personalStepIndex === slideIndex,
+    ).length;
+    const stuckCount = activeParticipants.filter(
+      (p) => Number.isInteger(p.personalStepIndex) && p.personalStepIndex < slideIndex,
+    ).length;
+    const aheadCount = totalActive - followingCount - stuckCount;
 
     return {
       currentStepIndex: slideIndex,
@@ -87,7 +107,14 @@ export function createPresenterWebSocketServer({
       highlights: stepManager.getHighlightDetails(),
       actionProgress,
       stepDistribution,
+      phaseDistribution,
       minPersonalStepIndex,
+      metrics: {
+        totalActive,
+        followingCount,
+        stuckCount,
+        aheadCount,
+      },
       participants: participantStates,
       outstandingHelpRequests: progressTracker.getOutstandingHelpRequestsRanked(
         (id) => stepManager.getParticipantStepIndex(id),
@@ -155,6 +182,13 @@ export function createPresenterWebSocketServer({
 
     if (advanced) {
       onAutoAdvance(lastStep);
+      logMetric({
+        kind: 'auto_advance',
+        toStepIndex: stepManager.getCurrentStepIndex(),
+        toStepId: lastStep?.id ?? null,
+        toStepTitle: lastStep?.title ?? null,
+        activeCount: activeIds.length,
+      });
       broadcastState('auto_advanced');
       return true;
     }
@@ -311,6 +345,13 @@ export function createPresenterWebSocketServer({
         sendMessage(presenterSocket, helpMessage);
       }
 
+      logMetric({
+        kind: 'help_request',
+        participantId,
+        stepId: request.stepId,
+        stepTitle: request.stepTitle,
+        personalStepIndex,
+      });
       broadcastState('help_requested');
     }
   }

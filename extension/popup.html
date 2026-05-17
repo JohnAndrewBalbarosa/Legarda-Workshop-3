@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Workshop Guide</title>
+  <style>
+    body { font-family: sans-serif; width: 280px; margin: 0; padding: 14px; color: #1e293b; }
+    h1 { font-size: 0.9rem; margin: 0 0 10px; }
+    label { display: block; font-size: 0.7rem; color: #64748b; font-weight: 700; margin: 8px 0 3px; text-transform: uppercase; letter-spacing: 0.4px; }
+    input { width: 100%; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8rem; box-sizing: border-box; }
+    button { margin-top: 10px; width: 100%; padding: 8px; background: #dc2626; color: white; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.8rem; }
+    .status { margin-top: 8px; font-size: 0.7rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <h1>Workshop Guide — AWS</h1>
+  <label for="userId">Participant ID</label>
+  <input id="userId" type="text" placeholder="user-1" />
+  <label for="presenterWs">Presenter WebSocket</label>
+  <input id="presenterWs" type="text" placeholder="ws://127.0.0.1:5050" />
+  <button id="save">Save & reconnect</button>
+  <div class="status" id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

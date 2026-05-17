@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workshop Slides</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #0f172a; color: #f8fafc; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
+    .stage { position: fixed; inset: 0; display: flex; flex-direction: column; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 18px 36px; border-bottom: 1px solid rgba(248,250,252,0.08); font-size: 0.85rem; }
+    .header .badge { background: #dc2626; color: white; padding: 4px 12px; border-radius: 999px; font-weight: 800; letter-spacing: 0.6px; font-size: 0.7rem; text-transform: uppercase; }
+    .header .meta { color: #94a3b8; }
+    .stage-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 80px; gap: 24px; }
+    .phase { color: #f87171; font-weight: 700; letter-spacing: 0.4em; text-transform: uppercase; font-size: 1rem; }
+    .step-num { color: #64748b; font-weight: 800; font-size: 1.4rem; }
+    h1 { font-size: clamp(3rem, 7vw, 6rem); margin: 0; line-height: 1.05; font-weight: 900; letter-spacing: -0.02em; }
+    .desc { font-size: clamp(1.25rem, 2vw, 1.75rem); color: #cbd5e1; max-width: 1100px; line-height: 1.4; }
+    .url { font-family: 'JetBrains Mono', ui-monospace, monospace; color: #fca5a5; font-size: 1rem; padding: 10px 16px; background: rgba(220,38,38,0.12); border: 1px solid rgba(220,38,38,0.4); border-radius: 8px; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+    .footer { padding: 18px 36px; border-top: 1px solid rgba(248,250,252,0.08); display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #94a3b8; }
+    .progress { display: flex; gap: 6px; flex: 1; margin: 0 24px; }
+    .progress .seg { flex: 1; height: 6px; background: rgba(248,250,252,0.1); border-radius: 999px; transition: background 0.4s; }
+    .progress .seg.done { background: #dc2626; }
+    .progress .seg.now { background: #f87171; box-shadow: 0 0 12px rgba(248,113,113,0.6); }
+    .stuck-warning { padding: 10px 18px; background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.4); border-radius: 8px; color: #fde68a; display: none; }
+    .stuck-warning.visible { display: block; }
+    .auto-tag { color: #4ade80; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="header">
+      <span class="badge">LIVE</span>
+      <span class="meta" id="meta">Connecting…</span>
+    </div>
+
+    <div class="stage-body">
+      <div class="phase" id="phase">Phase</div>
+      <div class="step-num" id="step-num">Step 1</div>
+      <h1 id="title">Workshop Slides</h1>
+      <p class="desc" id="desc">Waiting for the presenter to start…</p>
+      <div class="url" id="url" style="display:none;"></div>
+      <div class="stuck-warning" id="stuck">Holding here — some participants are still catching up.</div>
+    </div>
+
+    <div class="footer">
+      <span id="footer-left">—</span>
+      <div class="progress" id="progress"></div>
+      <span id="footer-right" class="auto-tag">AUTO</span>
+    </div>
+  </div>
+
+  <script>
+    const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+    let socket = null;
+
+    function connect() {
+      socket = new WebSocket(wsUrl);
+      socket.onopen = () => socket.send(JSON.stringify({ type: 'hello', role: 'presenter', participantId: `slides-${Date.now()}` }));
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'workshop_state') render(message.state);
+        } catch {}
+      };
+      socket.onclose = () => setTimeout(connect, 2000);
+    }
+    connect();
+
+    function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    function render(state) {
+      const steps = state.steps || [];
+      const idx = state.currentStepIndex ?? 0;
+      const step = state.currentStep || steps[idx] || null;
+      if (!step) return;
+
+      document.getElementById('phase').textContent = step.phase || 'Workshop';
+      document.getElementById('step-num').textContent = `Step ${idx + 1} of ${steps.length}`;
+      document.getElementById('title').textContent = step.title || 'Untitled step';
+      document.getElementById('desc').textContent = step.description || '';
+
+      const urlEl = document.getElementById('url');
+      if (step.targetUrl) { urlEl.style.display = 'inline-block'; urlEl.textContent = step.targetUrl; }
+      else { urlEl.style.display = 'none'; }
+
+      const m = state.metrics || {};
+      document.getElementById('meta').textContent = `${m.totalActive ?? 0} active · ${m.followingCount ?? 0} following · ${m.stuckCount ?? 0} stuck · ${m.aheadCount ?? 0} ahead`;
+      document.getElementById('footer-left').textContent = `Min step: ${(state.minPersonalStepIndex ?? -1) + 1}`;
+
+      const stuck = (m.stuckCount ?? 0) > 0;
+      document.getElementById('stuck').classList.toggle('visible', stuck);
+      document.getElementById('footer-right').textContent = stuck ? 'WAITING' : (state.allUsersComplete ? 'NEXT' : 'AUTO');
+
+      const progressEl = document.getElementById('progress');
+      progressEl.innerHTML = steps.map((_, i) => {
+        const cls = i < idx ? 'done' : i === idx ? 'now' : '';
+        return `<span class="seg ${cls}"></span>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

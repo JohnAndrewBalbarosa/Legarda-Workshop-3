@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Workshop Guide — AWS",
+  "version": "0.1.0",
+  "description": "Live red-ripple highlighting + presenter sync for the AWS EC2 workshop. Replaces the Playwright shell.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": [
+    "https://aws.amazon.com/*",
+    "https://*.aws.amazon.com/*",
+    "https://signin.aws.amazon.com/*",
+    "https://signup.aws.amazon.com/*",
+    "https://portal.aws.amazon.com/*",
+    "https://*.console.aws.amazon.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://aws.amazon.com/*",
+        "https://*.aws.amazon.com/*",
+        "https://signin.aws.amazon.com/*",
+        "https://signup.aws.amazon.com/*",
+        "https://portal.aws.amazon.com/*",
+        "https://*.console.aws.amazon.com/*"
+      ],
+      "js": ["highlight-engine.js", "content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Workshop Guide"
+  }
+}

@@ -8,6 +8,8 @@
     "start": "node start-all.mjs",
     "start:presenter": "node presenter/server.js",
     "start:usher": "node usher/server.js",
-    "start:user": "node user/aws-guide-playwright.mjs"
+    "start:user": "node user/aws-guide-playwright.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "screenshots:extension": "node scripts/capture-extension-walkthrough.mjs"
   }
 }

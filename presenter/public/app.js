@@ -242,6 +242,24 @@ function initializeRoleClient(clientRole) {
       setHtml('presenter-action-progress', `<div class="list">${markup}</div>`);
     }
 
+    const metrics = workshopState.metrics || {};
+    if (metrics.totalActive != null) {
+      const summary = `${metrics.totalActive} active — Following: ${metrics.followingCount} · Stuck behind: ${metrics.stuckCount} · Ahead: ${metrics.aheadCount}`;
+      setHtml('presenter-metrics', escapeHtml(summary));
+    }
+
+    const phaseDist = Array.isArray(workshopState.phaseDistribution) ? workshopState.phaseDistribution : [];
+    if (phaseDist.length > 0) {
+      const phaseMarkup = phaseDist
+        .map((p) => {
+          return `<div class="list-item"><h3>${escapeHtml(p.phase)}</h3><div class="inline-meta"><span class="pill">${p.total} total</span><span class="pill">${p.following} on slide</span><span class="pill" style="background:#fee2e2;color:#991b1b;">${p.stuck} stuck</span><span class="pill">${p.ahead} ahead</span></div></div>`;
+        })
+        .join('');
+      setHtml('presenter-phase-distribution', `<div class="list">${phaseMarkup}</div>`);
+    } else {
+      setHtml('presenter-phase-distribution', '<p class="state-empty">No phase data yet.</p>');
+    }
+
     const distribution = Array.isArray(workshopState.stepDistribution) ? workshopState.stepDistribution : [];
     if (distribution.length > 0) {
       const minIdx = workshopState.minPersonalStepIndex;

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Workshop Platform — New Joiner Onboarding",
+  "description": "End-to-end orientation for a new engineer: how the presenter, user, usher, and Chrome extension fit together over a LAN, and where to look when you need to change something.",
+  "ref": "main",
+  "steps": [
+    {
+      "file": "README.md",
+      "line": 4,
+      "title": "What this product is",
+      "description": "A local-first workshop platform: a presenter drives pacing, participants follow on their own laptops, and ushers help anyone stuck. Everything runs over a single WiFi network with no internet dependency. Read the Overview and Key Features here before clicking deeper — the rest of the tour assumes you know the three roles (presenter / user / usher)."
+    },
+    {
+      "file": "README.md",
+      "line": 75,
+      "title": "How a workshop actually starts",
+      "description": "Getting Started lists the real boot sequence per machine: presenter setup + start, user setup + start with PRESENTER_WS pointing at the presenter, optional Playwright AWS guide, and an usher dashboard URL. Skim this so the directory layout below makes sense — each numbered step maps to one of the top-level folders."
+    },
+    {
+      "directory": "presenter",
+      "title": "Module map: presenter",
+      "description": "The presenter is the source of truth for workshop state. `server.js` is the HTTP entry, `websocket.js` is the realtime fan-out, `modules/` holds the domain logic (steps, plan, translation, report), and `public/` serves the static dashboard pages. Everything else (user, usher, extension) is a client of this package."
+    },
+    {
+      "file": "presenter/server.js",
+      "selection": {
+        "start": { "line": 70, "character": 0 },
+        "end": { "line": 113, "character": 0 }
+      },
+      "title": "Presenter boot + state envelope",
+      "description": "`createPresenterServer` instantiates a `StepManager`, a `ProgressTracker`, and the WebSocket server, then exposes `buildState()` — the canonical snapshot every HTTP and WS consumer reads. Note how it merges `realtimeServer.getState()` with a freshly computed report: the realtime layer owns participant truth, the HTTP layer just renders it."
+    },
+    {
+      "file": "presenter/server.js",
+      "selection": {
+        "start": { "line": 28, "character": 0 },
+        "end": { "line": 45, "character": 0 }
+      },
+      "title": "Routing convention",
+      "description": "Static routes are a tiny `Map`, not Express. `/presenter`, `/user`, `/usher` each serve a different HTML shell, and `/assets/app.js` + `/assets/styles.css` are shared. The JSON endpoints — `/health`, `/state`, `/report`, `/report.txt` — are defined inline at lines 118-139. Gotcha: `slides.html` is referenced from `presenter.html` but is NOT in this map; it currently 404s unless you add it."
+    },
+    {
+      "file": "presenter/websocket.js",
+      "selection": {
+        "start": { "line": 67, "character": 0 },
+        "end": { "line": 130, "character": 0 }
+      },
+      "title": "The state every client renders",
+      "description": "`buildWorkshopState()` is the single shape broadcast to presenters and ushers on every change. It computes step + phase distributions, action progress for the current step, pacing metrics (following / stuck / ahead), and the help-request queue. Whenever you see a field on a dashboard, this function is where it was assembled."
+    },
+    {
+      "file": "presenter/modules/StepManager.js",
+      "line": 41,
+      "title": "Domain core: StepManager",
+      "description": "`StepManager` owns the slide index, the per-participant personal step index, and all derived rollups (phase distribution, action completion, pacing). It is mutated only from `websocket.js` and `server.js`; nothing else should reach in. Treat this class as the schema for the whole product — adding a metric usually means adding a method here first."
+    },
+    {
+      "file": "presenter/modules/WorkshopPlan.js",
+      "line": 14,
+      "title": "The actual workshop content",
+      "description": "`WORKSHOP_STEP_DEFINITIONS` is a hand-authored list of steps with `phase`, `targetUrl`, `expectedProfile`, and CSS `highlightSelectors`. The Playwright shell and the Chrome extension both read these selectors to know what to ripple. Adding a new step = appending an entry here, not editing the dashboard."
+    },
+    {
+      "file": "presenter/progressTracker.js",
+      "line": 1,
+      "title": "Help queue and participant ledger",
+      "description": "`ProgressTracker` is the second domain object. It holds participant identity (id, seat, role), outstanding help requests, and resolution events. `StepManager` knows where someone is; `ProgressTracker` knows who they are and whether they are stuck enough to ask for help."
+    },
+    {
+      "file": "presenter/public/presenter.html",
+      "line": 1,
+      "title": "Presenter dashboard shell",
+      "description": "A static HTML skeleton with named `id`s (`presenter-meta`, `presenter-metrics`, `presenter-phase-distribution`, `presenter-action-progress`, etc.). It loads `/assets/app.js`, which receives `workshopState` over WebSocket and writes innerHTML into these slots. There is no framework — adding a panel means adding a `<section>` here plus a render branch in `app.js`."
+    },
+    {
+      "file": "presenter/public/app.js",
+      "line": 1,
+      "title": "Single-file client for all three roles",
+      "description": "`app.js` is shared by `/presenter`, `/user`, and `/usher`. It opens a WS to the presenter, parses `workshop_state` messages, and dispatches to per-role render functions. The pattern is consistent: pull a value off `workshopState`, escape it, set HTML on a known id. Look here when a number is wrong on screen — the field is almost always already on the server payload."
+    },
+    {
+      "directory": "user",
+      "title": "Module map: user",
+      "description": "The user package is what runs on a participant's laptop. `backend/websocket.js` is a thin client that bridges the presenter WS to the local Playwright/extension shell, and the `*.mjs` scripts in the root drive Chromium against AWS. `aws-guide-playwright.mjs` is the headful guide referenced from the README's start commands."
+    },
+    {
+      "directory": "usher",
+      "title": "Module map: usher",
+      "description": "The usher dashboard is a link-only client — it hits the presenter's `/usher` static page and joins the same WS. `usher/server.js` exists for self-hosting scenarios but in a normal workshop the usher just opens `http://PRESENTER_IP:5050/usher` from any browser. No Playwright dependency on this side."
+    },
+    {
+      "file": "extension/manifest.json",
+      "line": 7,
+      "title": "Chrome extension replaces Playwright",
+      "description": "The newer guidance path is a Manifest V3 extension scoped to AWS hosts. `highlight-engine.js` + `content.js` run on every aws.amazon.com page; `background.js` keeps a presenter WS connection alive. This is intended to replace the Playwright shell for participants who can install an extension instead of running a Node script."
+    },
+    {
+      "file": "start-all.mjs",
+      "line": 19,
+      "title": "Local dev: one command, three services",
+      "description": "`start-all.mjs` spawns presenter + usher + user as child processes with shared `PRESENTER_WS` env. Use this when you want to iterate without setting up three terminals. For real workshops you still follow the README per-machine steps; this script is for the developer machine only."
+    },
+    {
+      "title": "Where to go next",
+      "description": "You can now (1) trace any number on a dashboard back to `buildWorkshopState` in `presenter/websocket.js`, (2) add a workshop step by editing `WorkshopPlan.js`, (3) add a metric by extending `StepManager.js` and a render block in `presenter/public/app.js`, and (4) decide whether a participant uses the Playwright shell (`user/`) or the Chrome extension (`extension/`). When in doubt, the presenter is authoritative — read its state envelope first."
+    }
+  ]
+}
