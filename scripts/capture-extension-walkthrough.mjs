@@ -186,8 +186,48 @@ async function captureAwsHome(context) {
 }
 
 // Open a fresh tab on aws.amazon.com/console/ so the user can click "Sign in"
-// and complete the flow themselves. Resolves once the page navigates to a
-// console.aws.amazon.com URL — i.e. they are signed in.
+// and complete the flow themselves. Resolves only when we see a signed-in
+// console UI marker on some open tab — URL alone is unreliable because AWS
+// redirects through console.aws.amazon.com briefly even when the session is
+// invalid, then bounces back to sign-in.
+const SIGNED_IN_MARKERS = [
+  'input#awsc-concierge-input',
+  'input[data-testid="awsc-concierge-input"]',
+  '[data-testid="awsc-nav-account-menu-button"]',
+  '#nav-usernameMenu',
+  'button[data-testid="more-menu__awsc-nav-account-menu-button"]',
+];
+const SIGNIN_MARKERS = [
+  'input[type="password"]',
+  '#password',
+  'input[name="email"]',
+  'input[name="otpCode"]',
+  'input[autocomplete="one-time-code"]',
+  '#root_account_signin',
+];
+
+async function isSignedIn(page) {
+  // Page is "signed in" iff a console-only marker is visible AND no sign-in
+  // marker is present on the same tab. Both checks are cheap and tolerant of
+  // selectors that don't exist (returns null/false).
+  let hasConsole = false;
+  for (const selector of SIGNED_IN_MARKERS) {
+    try {
+      const handle = await page.$(selector);
+      if (handle && (await handle.isVisible())) { hasConsole = true; break; }
+    } catch {}
+  }
+  if (!hasConsole) return false;
+
+  for (const selector of SIGNIN_MARKERS) {
+    try {
+      const handle = await page.$(selector);
+      if (handle && (await handle.isVisible())) return false;
+    } catch {}
+  }
+  return true;
+}
+
 async function pauseForManualSignIn(context, timeoutMinutes = 10) {
   const page = await context.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -198,18 +238,25 @@ async function pauseForManualSignIn(context, timeoutMinutes = 10) {
   console.log('--------------------------------------------------------');
   console.log(' 1. Bumalik ka sa Chromium window na bukas.');
   console.log(' 2. I-click "Sign in" at kumpletuhin ang AWS sign-in.');
-  console.log(' 3. Auto-resume yung script kapag nasa console.aws.amazon.com ka na.');
+  console.log('    (Email + password + MFA from your phone)');
+  console.log(' 3. Auto-resume yung script kapag napa-render na yung');
+  console.log('    AWS Console search bar — ibig sabihin signed in ka na.');
   console.log(`    Timeout: ${timeoutMinutes} minutes.`);
   console.log('========================================================\n');
 
   const deadline = Date.now() + timeoutMinutes * 60 * 1000;
   while (Date.now() < deadline) {
-    const url = page.url();
-    if (/console\.aws\.amazon\.com\/console\/home/.test(url) || /console\.aws\.amazon\.com\/?($|\?)/.test(url)) {
-      console.log(`Detected signed-in console URL: ${url}`);
-      return page;
+    // Check every open page in the context — user may have ended up on a
+    // different tab after AWS' redirect dance.
+    for (const candidate of context.pages()) {
+      try {
+        if (await isSignedIn(candidate)) {
+          console.log(`Detected signed-in console on: ${candidate.url()}`);
+          return candidate;
+        }
+      } catch {}
     }
-    await wait(2000);
+    await wait(3000);
   }
   throw new Error('Timed out waiting for manual sign in.');
 }
