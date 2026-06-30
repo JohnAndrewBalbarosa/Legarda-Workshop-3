@@ -109,3 +109,56 @@ This project is a local-first, React-based automation tool designed to guide wor
 ---
 
 [^dev]: For development and code generation only: The VS Code browser agent is used to navigate the AWS Console Home Page, retrieve links, and determine which buttons or elements to blink or highlight. The agent infers navigation steps both from its own analysis and from the developer's (your) manual navigation, taking notes on which sites and elements are clicked. This enables deterministic, well-documented automation logic for later implementation. Actual users will use Chromium integrated with Playwright; this note is for developer-side reference only and not part of the user-facing workflow.
+
+## Architecture (UML)
+
+```mermaid
+graph TB
+    subgraph Presenter["Presenter (Conductor)"]
+        PS["WebSocket Server<br/>Port 5050"]
+        PD["Dashboard UI<br/>Progress Tracker"]
+        PC["Control Panel<br/>next/prev steps"]
+    end
+    
+    subgraph Participant["Participant (User Device)"]
+        UB["Chromium Browser"]
+        US["User Agent<br/>aws-guide.mjs"]
+        PW["Playwright<br/>Overlay Engine"]
+    end
+    
+    subgraph Usher["Usher (Support)"]
+        UD["Dashboard UI<br/>Port 5051"]
+        UM["Status Monitor<br/>Help Requests"]
+    end
+    
+    subgraph AWS["AWS Console"]
+        AC["EC2 Dashboard<br/>Home Page"]
+        AUI["UI Elements"]
+    end
+    
+    PS -->|sync| US
+    US -->|control| UB
+    UB -->|highlight| AUI
+    PW -->|overlay| AUI
+    PS -->|broadcast| UD
+    UM -->|notify| AC
+    PC -->|send| PS
+    PS -->|receive| UM
+```
+
+**Three Deployment Tiers:**
+
+1. **Presenter** (Workshop lead)
+   - Runs WebSocket server (ws://10.250.250.1:5050)
+   - Controls step progression
+   - Monitors participant progress
+
+2. **User** (Workshop participant)
+   - Connects via Playwright-driven Chromium
+   - Auto-syncs with presenter steps
+   - Receives visual UI overlays on AWS Console
+
+3. **Usher** (Human assistant)
+   - Monitors help requests + current steps
+   - Provides real-time support for stuck participants
+   - Reports assistance needed
