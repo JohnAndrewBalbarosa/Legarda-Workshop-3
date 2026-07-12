@@ -8,34 +8,26 @@ Repository: [JohnAndrewBalbarosa/Legarda-Workshop-3](https://github.com/JohnAndr
 
 ## Problem and Goal
 
-This project should be read as a technical build: it identifies a concrete workflow or research problem, implements a working system around that problem, and documents enough evidence for another person to understand, run, and evaluate the result.
+**Problem.** Hands-on AWS workshops are difficult to synchronize when presenters, participants, browser overlays, and EC2 instructions drift out of step.
 
-Primary goals:
-
-- Explain what the project does and who it is for.
-- Show the architecture and implementation choices.
-- Provide enough setup guidance for local review.
-- Report measured results when available.
-- Make limitations and next steps explicit instead of implying unverified impact.
+**Goal.** Coordinate a guided workshop with presenter-controlled steps, participant views, and browser-based visual assistance.
 
 ## System Design
 
-Current documented components:
-
-- Documentation folder for architecture, requirements, or supporting notes.
-- Utility scripts for running, generating, or processing project data.
-
-Project tags:
-
-- To be tagged based on the final project stack.
+- `presenter/`, `user/`, and `usher/`: role-specific web applications.
+- `extension/`: browser extension and overlay integration.
+- `interaction-recorder/`: interaction capture for repeatable guidance.
+- `start-all.mjs` and root scripts: multi-application startup orchestration.
 
 ## Setup and Usage
 
-Use the commands below as the starting point for local setup. Verify environment variables, secrets, datasets, and external services before running production-like workflows.
-
 ```bash
 npm install
-npm run dev
+cp .env.example .env
+npm start
+
+# Windows helper
+./start.ps1
 ```
 
 ## Evaluation Method
